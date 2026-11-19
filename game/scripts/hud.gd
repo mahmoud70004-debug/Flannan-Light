@@ -1,0 +1,61 @@
+class_name Hud
+extends CanvasLayer
+## Debug readout, interaction prompt and crosshair. Drawn over the dithered
+## image at full resolution.
+
+var _debug: Label
+var _prompt: Label
+var _cross: Control
+var _fps_avg := 0.0
+var _worst_ms := 0.0
+var _worst_window := 0.0
+var _info := ""
+
+
+func _ready() -> void:
+	layer = 5
+	_debug = Label.new()
+	_debug.position = Vector2(20, 14)
+	_debug.add_theme_font_size_override("font_size", 22)
+	_debug.add_theme_color_override("font_outline_color", Color.BLACK)
+	_debug.add_theme_constant_override("outline_size", 6)
+	add_child(_debug)
+
+	_prompt = Label.new()
+	_prompt.set_anchors_and_offsets_preset(Control.PRESET_CENTER_BOTTOM)
+	_prompt.offset_top = -250
+	_prompt.offset_left = -300
+	_prompt.offset_right = 300
+	_prompt.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_prompt.add_theme_font_size_override("font_size", 30)
+	_prompt.add_theme_color_override("font_outline_color", Color.BLACK)
+	_prompt.add_theme_constant_override("outline_size", 8)
+	add_child(_prompt)
+
+	_cross = Control.new()
+	_cross.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_cross.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_cross.draw.connect(func() -> void:
+		_cross.draw_circle(_cross.size * 0.5, 3.0, Color(1, 1, 1, 0.7)))
+	add_child(_cross)
+
+
+func set_info(text: String) -> void:
+	_info = text
+
+
+func set_prompt(text: String) -> void:
+	_prompt.text = text
+
+
+func _process(delta: float) -> void:
+	_debug.visible = Settings.show_debug
+	_worst_window += delta
+	_worst_ms = maxf(_worst_ms, delta * 1000.0)
+	_fps_avg = lerpf(_fps_avg, 1.0 / maxf(delta, 0.0001), 0.05)
+	if _worst_window >= 5.0:
+		_worst_window = 0.0
+		_worst_ms = delta * 1000.0
+	var calls := int(Performance.get_monitor(Performance.RENDER_TOTAL_DRAW_CALLS_IN_FRAME))
+	var tris := int(Performance.get_monitor(Performance.RENDER_TOTAL_PRIMITIVES_IN_FRAME))
+	_debug.text = "%.0f fps · worst %.0f ms/5s\ndraw calls %d · tris %d\n%s" % [_fps_avg, _worst_ms, calls, tris, _info]

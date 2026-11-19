@@ -1,0 +1,91 @@
+name: Build and deploy
+
+# Every push to main builds the Godot web export and publishes it to GitHub Pages:
+#   https://<owner>.github.io/<repo>/
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+env:
+  GODOT_VERSION: "4.7.2"
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Cache Godot and web template
+        id: cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/godot
+            ~/.local/share/godot/export_templates
+          key: godot-${{ env.GODOT_VERSION }}-web-v1
+
+      - name: Install Godot and the web export template
+        if: steps.cache.outputs.cache-hit != 'true'
+        shell: bash
+        run: |
+          base="https://github.com/godotengine/godot-builds/releases/download/${GODOT_VERSION}-stable"
+          tdir="$HOME/.local/share/godot/export_templates/${GODOT_VERSION}.stable"
+          mkdir -p "$HOME/godot" "$tdir" /tmp/dl
+          curl -fsSL -o /tmp/dl/godot.zip "$base/Godot_v${GODOT_VERSION}-stable_linux.x86_64.zip"
+          unzip -q /tmp/dl/godot.zip -d "$HOME/godot"
+          curl -fsSL -o /tmp/dl/templates.zip "$base/Godot_v${GODOT_VERSION}-stable_export_templates.tpz"
+          unzip -q /tmp/dl/templates.zip 'templates/web_nothreads_release.zip' 'templates/version.txt' -d /tmp/dl/t
+          cp /tmp/dl/t/templates/* "$tdir/"
+          rm -rf /tmp/dl
+
+      - name: Stamp build number
+        shell: bash
+        run: |
+          printf '{"build": "%s", "commit": "%s"}\n' "${{ github.run_number }}" "${GITHUB_SHA::7}" > game/build_info.json
+
+      - name: Import project
+        shell: bash
+        run: |
+          chmod +x "$HOME/godot/Godot_v${GODOT_VERSION}-stable_linux.x86_64"
+          "$HOME/godot/Godot_v${GODOT_VERSION}-stable_linux.x86_64" --headless --path game --import
+
+      - name: Smoke test
+        shell: bash
+        run: |
+          "$HOME/godot/Godot_v${GODOT_VERSION}-stable_linux.x86_64" --headless --path game --script res://tests/smoke.gd 2>&1 | tee smoke.log
+          ! grep -E "SCRIPT ERROR|^FAIL " smoke.log
+
+      - name: Export web build
+        shell: bash
+        run: |
+          N="${{ github.run_number }}"
+          mkdir -p build/web
+          "$HOME/godot/Godot_v${GODOT_VERSION}-stable_linux.x86_64" --headless --path game --export-release "Web" "../build/web/b${N}.html"
+          test -f "build/web/b${N}.html"
+          test -f "build/web/b${N}.wasm"
+          test -f "build/web/b${N}.pck"
+          # Files carry the build number so a phone never mixes an old .wasm with a new .pck.
+          printf '<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Flannan Light</title><meta http-equiv="refresh" content="0;url=b%s.html"><style>html{background:#000}</style></head><body><script>location.replace("b%s.html"+location.search)</script></body></html>\n' "$N" "$N" > build/web/index.html
+          ls -la build/web
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: build/web
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
