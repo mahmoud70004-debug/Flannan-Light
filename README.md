@@ -1,11 +1,7 @@
-<div align="center">
+# Flannan Light
 
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
+First-person 3D psychological horror for Android, by Pottsfield Studio. You are a new lighthouse keeper in the early 1900s. The routine is calm, until it is not.
 
-  <h1>Built with AI Studio</h2>
+Status: pre-production. See [docs/GDD.md](docs/GDD.md) and [docs/DEVELOPMENT-PLAN.md](docs/DEVELOPMENT-PLAN.md).
 
-  <p>The fastest path from prompt to production with Gemini.</p>
-
-  <a href="https://aistudio.google.com/apps">Start building</a>
-
-</div>
+Inspired by the 1900 disappearance of the Flannan Isles keepers. All characters in the game are fictional.
