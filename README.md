@@ -2,7 +2,7 @@
 
 First-person 3D psychological horror for Android, by Pottsfield Studio. You are a new lighthouse keeper in the early 1900s. The routine is calm, until it is not.
 
-**Play the latest build:** https://mahmoud70004-debug.github.io/flannan-light/ (updates automatically on every push to `main`; the build number is shown on the title screen).
+**Play the latest build:** https://mahmoud70004-debug.github.io/Flannan-Light/ (updates automatically on every push to `main`; the build number is shown on the title screen).
 
 Status: pre-production, phase 0 (pipeline). See [docs/GDD.md](docs/GDD.md) and [docs/DEVELOPMENT-PLAN.md](docs/DEVELOPMENT-PLAN.md).
 

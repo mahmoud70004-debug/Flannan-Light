@@ -80,7 +80,7 @@ wake → Martin's/log instructions → do daily tasks (clean, check lamp, store,
 | D-004 | 2026-11-19 | Days are data resources (`DayData`) | hard-coded day scripts | Slow escalation becomes content authoring | [anomaly-escalation](features/anomaly-escalation/design.md) |
 | D-006 | 2026-11-19 | Fixed soundscape: silence, waves, storm, gulls; no music, no stingers | add a score or stingers | User direction: terror from silence and escalation, never loud sounds | Audio |
 | D-007 | 2026-11-19 | Palette presets in Settings instead of mandatory pure B/W; user picks by playtesting | pure 1-bit only | User allows colours; palette swap is a cheap lookup in the dither shader | Visual filters |
-| D-008 | 2026-11-19 | Test link is GitHub Pages at `https://mahmoud70004-debug.github.io/<repo>/`, auto-deployed by Actions on every push to `main` | Cloudflare/Netlify | User's required link format | M0 |
+| D-008 | 2026-11-19 | Test link is GitHub Pages at `https://mahmoud70004-debug.github.io/Flannan-Light/`, auto-deployed by Actions on every push to `main` | Cloudflare/Netlify | User's required link format | M0 |
 | D-005 | 2026-11-19 | 3D renders in a low-res SubViewport, UI in the native-res window | one low-res window for all | Crisp UI at no extra GPU cost, pixel look for the world | 1-bit renderer |
 
 ## Open questions
