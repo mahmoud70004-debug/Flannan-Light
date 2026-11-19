@@ -1,6 +1,6 @@
 # Flannan Light — Game Design Document
 
-**Version:** 0.1 · **Updated:** 2026-11-19 · [Features](#feature-index) · [Decisions](#decisions) · [Change log](#change-log)
+**Version:** 0.2 · **Updated:** 2026-11-19 · [Features](#feature-index) · [Decisions](#decisions) · [Change log](#change-log)
 
 ## Summary
 You are a new lighthouse keeper in the early 1900s, alone on a remote island in an archipelago run by a government superintendent, Martin. Martin teaches you the daily routine on day 1, sails away, and visits every few days. You clean the tower, check the lamp, keep the store, watch ships and signal the far lighthouses. The routine is calm and repetitive on purpose; then it starts to break. The game is psychological horror through exploration only: no monsters, no combat. It ends when Martin, your only link to the world, starts to behave wrongly and you learn what the routine has been hiding.
@@ -19,7 +19,7 @@ Inspired by the 1900 disappearance of the three keepers of the Flannan Isles lig
 
 ## Pillars
 1. **The routine is the game.** Every horror beat is a deviation from a task the player already knows by heart; no new system is introduced just to scare.
-2. **Nothing attacks you.** No monsters, no combat, no chase; dread comes from wrongness, absence and sound. Rules out jump-scare chases and health bars.
+2. **Nothing attacks you.** No combat, no chase, no jump scares, no loud stingers. Dread comes from wrongness, absence and silence. A glimpse never pays off with an attack: the light cuts out, comes back, and the thing is gone.
 3. **Martin is the last anchor.** His visits are the only safety; the horror peaks when that safety is corrupted. His dialogue changes by tiny edits, never by a sudden turn.
 4. **One-bit and cheap.** Pure black-and-white, low-res, dithered. Lighting, silhouette and dither carry the art, so assets stay simple and the game runs on mid-range phones.
 5. **Escalate by data, not code.** Each day is a content file; new anomalies are authored, not programmed.
@@ -44,7 +44,9 @@ wake → Martin's/log instructions → do daily tasks (clean, check lamp, store,
 | Menus and settings | idea | MVP | Title, new/continue, settings (sensitivity, brightness, dither, volume), pause | — |
 | Save and continue | idea | MVP | Autosave at sleep, one slot, stored in `user://` | — |
 | Martin dialogue | idea | MVP | Text-only dialogue with scripted variants per visit | — |
-| Audio | idea | MVP | Ambient sea/wind, interior hum, positional anomaly sounds, no music except sparse stingers | — |
+| Audio | idea | MVP | Fixed soundscape: silence, waves, storm, gulls; indoor low-pass; no music or stingers | — |
+| Glimpse events | idea | MVP | A grinning face seen for ~2 s in dim light during a task, then lights cut and return and it is gone; never attacks | — |
+| Visual filters | idea | MVP | Selectable looks in Settings: pure 1-bit, 4-tone ash, warm dither, cold tide, reference palette | — |
 | Endings | idea | later | Three endings chosen by routine fidelity and final choice | — |
 
 ## Milestones
@@ -58,8 +60,8 @@ wake → Martin's/log instructions → do daily tasks (clean, check lamp, store,
 
 ## Direction
 - **Tone and narrative:** quiet, dry, bureaucratic. The log book is a diegetic narrator. Dread comes from small mismatches (counts, directions, handwriting, time). Stays ambiguous: the player never gets a monster to explain it.
-- **Art:** pure black and white, ordered dither, no grey UI. Silhouette and light direction must read at low res. A *soft* option (4 grey levels) exists for readability [ASSUMPTION].
-- **Audio:** audio is half the horror: sea, wind, wood, metal, footsteps, the lamp mechanism. Silence is used deliberately.
+- **Art:** low-res, ordered dither, very dim lighting. Pure black and white is no longer mandatory: Settings offers several palette presets (see Visual filters) and the user picks the one that fits the mood. The face and figure style references a dithered, grinning, deep-black-eyed look (user reference); we design an original character, not a copy.
+- **Audio:** the soundscape is fixed for the whole game and never replaced: silence, violent waves, storm wind, gulls. No music and no stingers. Interior acoustics (a low-pass on the sea bus indoors) give silence and muffled waves without changing the sound set. Diegetic foley (steps, doors, task sounds) exists but is quiet.
 - **Accessibility and localization:** English only at launch; strings in a translation table from day one so adding a language does not touch code. Brightness and dither-strength settings; no flashing above 3 Hz outside the lamp rotation (which is slow).
 - **Content rules:** the 1900 disappearance is history. Do not quote Wilfrid Gibson's 1912 poem "Flannan Isle" (probably still in copyright) and do not base scenes on the 2018 film. Use only invented names for characters.
 
@@ -76,6 +78,9 @@ wake → Martin's/log instructions → do daily tasks (clean, check lamp, store,
 | D-002 | 2026-11-19 | Test builds ship as a web build on GitHub Pages (single-threaded); APK only for the final release | APK artifact per commit | User's requirement: a link per update; single-threaded needs no COOP/COEP headers, which Pages cannot set | M0 |
 | D-003 | 2026-11-19 | Text and UI in English only | Arabic + English | User choice; Arabic would need RTL shaping and a pixel font | UI, dialogue |
 | D-004 | 2026-11-19 | Days are data resources (`DayData`) | hard-coded day scripts | Slow escalation becomes content authoring | [anomaly-escalation](features/anomaly-escalation/design.md) |
+| D-006 | 2026-11-19 | Fixed soundscape: silence, waves, storm, gulls; no music, no stingers | add a score or stingers | User direction: terror from silence and escalation, never loud sounds | Audio |
+| D-007 | 2026-11-19 | Palette presets in Settings instead of mandatory pure B/W; user picks by playtesting | pure 1-bit only | User allows colours; palette swap is a cheap lookup in the dither shader | Visual filters |
+| D-008 | 2026-11-19 | Test link is GitHub Pages at `https://mahmoud70004-debug.github.io/<repo>/`, auto-deployed by Actions on every push to `main` | Cloudflare/Netlify | User's required link format | M0 |
 | D-005 | 2026-11-19 | 3D renders in a low-res SubViewport, UI in the native-res window | one low-res window for all | Crisp UI at no extra GPU cost, pixel look for the world | 1-bit renderer |
 
 ## Open questions
@@ -84,8 +89,10 @@ wake → Martin's/log instructions → do daily tasks (clean, check lamp, store,
   - Pure 1-bit may be unreadable in dark scenes → readability test on the real phone in M1, brightness/dither settings.
   - Godot web on mid-range Android may stutter or run out of memory → performance spike in M0/M1 on the real phone before content.
   - Web audio needs a user tap → the title screen's Start button unlocks audio.
-  - Private repo + GitHub Pages needs a paid GitHub plan; Pages sites are public even from private repos → user decision (see DEVELOPMENT-PLAN).
+  - GitHub Pages needs a public repo (or a paid plan) → the repo is made public; the source is therefore visible (see DEVELOPMENT-PLAN).
+  - Glimpses can be missed on a small dim screen, or become predictable → gaze-triggered placement, a strict per-day budget, and every glimpse different (see DEVELOPMENT-PLAN).
   - Horror pacing is hard to judge solo → a playtest per milestone from M3.
 
 ## Change log
 **0.1 (2026-11-19):** first draft; three core features designed; D-001 to D-005 logged.
+**0.2 (2026-11-19):** audio fixed (D-006), palette presets (D-007), deploy link (D-008); glimpse events and visual filters added to the index; pillar 2 rewritten.
