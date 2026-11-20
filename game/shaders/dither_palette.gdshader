@@ -1,6 +1,8 @@
 shader_type canvas_item;
 // Ordered (Bayer 4x4) dither of the low-res 3D image onto a small palette.
 // Dither cells are low-res pixels, so the pattern stays crisp when upscaled.
+// Before quantising: contrast curve, vignette and a luminance edge pass that
+// darkens object outlines so shapes read at 240p.
 
 uniform int levels = 4;
 uniform vec3 c0 = vec3(0.0);
@@ -10,7 +12,11 @@ uniform vec3 c3 = vec3(0.9);
 uniform vec3 c4 = vec3(1.0);
 uniform vec3 c5 = vec3(1.0);
 uniform float brightness = 1.0;
+uniform float contrast = 1.25;
 uniform float dither_amount = 1.0;
+uniform float vignette = 0.55;
+uniform float edge_strength = 0.8;
+uniform float edge_threshold = 0.12;
 
 const float BAYER[16] = float[16](
 	0.0, 8.0, 2.0, 10.0,
@@ -27,11 +33,23 @@ vec3 tone(int i) {
 	return c5;
 }
 
+#define LUMA(uv) dot(texture(TEXTURE, (uv)).rgb, vec3(0.299, 0.587, 0.114))
+
 void fragment() {
-	vec3 src = texture(TEXTURE, UV).rgb;
-	float lum = clamp(dot(src, vec3(0.299, 0.587, 0.114)) * brightness, 0.0, 1.0);
-	ivec2 size = textureSize(TEXTURE, 0);
-	ivec2 p = ivec2(UV * vec2(size));
+	vec2 px = 1.0 / vec2(textureSize(TEXTURE, 0));
+	float l = LUMA(UV);
+	float edge = abs(l - LUMA(UV + vec2(px.x, 0.0)))
+		+ abs(l - LUMA(UV - vec2(px.x, 0.0)))
+		+ abs(l - LUMA(UV + vec2(0.0, px.y)))
+		+ abs(l - LUMA(UV - vec2(0.0, px.y)));
+
+	float lum = l * brightness;
+	lum = (lum - 0.5) * contrast + 0.5;
+	lum *= 1.0 - vignette * smoothstep(0.25, 0.85, length(UV - 0.5) * 1.6);
+	lum *= 1.0 - edge_strength * smoothstep(edge_threshold, edge_threshold * 2.0, edge);
+	lum = clamp(lum, 0.0, 1.0);
+
+	ivec2 p = ivec2(UV * vec2(textureSize(TEXTURE, 0)));
 	float threshold = (BAYER[(p.x % 4) + (p.y % 4) * 4] + 0.5) / 16.0;
 	threshold = mix(0.5, threshold, dither_amount);
 	float v = lum * float(levels - 1);

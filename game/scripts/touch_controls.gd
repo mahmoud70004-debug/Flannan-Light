@@ -9,6 +9,7 @@ signal interact_pressed
 signal menu_pressed
 signal filter_pressed
 signal resolution_pressed
+signal shadows_pressed
 
 const STICK_RADIUS := 110.0
 const KNOB_RADIUS := 46.0
@@ -24,7 +25,9 @@ var _look_index := -1
 var _ui_index := -1
 var _stick_base := Vector2.ZERO
 var _stick_knob := Vector2.ZERO
-var _labels := ["MENU", "FILTER", "RES"]
+var _labels := ["MENU", "FILTER", "RES", "SHADOW"]
+var _last_pos := {}                ## finger index -> last absolute position (see _drag)
+var _use_mouse := false
 
 
 func _ready() -> void:
@@ -32,6 +35,8 @@ func _ready() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	resized.connect(_reset_stick)
 	_reset_stick()
+	# Real touchscreens deliver touches only. Mouse stands in as one finger on desktops.
+	_use_mouse = not DisplayServer.is_touchscreen_available()
 
 
 func _interact_center() -> Vector2:
@@ -50,28 +55,37 @@ func _reset_stick() -> void:
 
 func _input(event: InputEvent) -> void:
 	if event is InputEventScreenTouch:
-		if event.pressed:
+		if event.pressed and not event.canceled:
 			_press(event.index, event.position)
 		else:
 			_release(event.index)
 	elif event is InputEventScreenDrag:
-		_drag(event.index, event.position, event.relative)
+		_drag(event.index, event.position)
+	elif _use_mouse and event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT:
+		if event.pressed:
+			_press(-10, event.position)
+		else:
+			_release(-10)
+	elif _use_mouse and event is InputEventMouseMotion and (event.button_mask & MOUSE_BUTTON_MASK_LEFT):
+		_drag(-10, event.position)
 	elif event is InputEventKey and event.pressed and not event.echo and event.keycode == KEY_E:
 		interact_pressed.emit()
 
 
 func _press(index: int, pos: Vector2) -> void:
+	_last_pos[index] = pos
 	if (pos - _interact_center()).length() <= BUTTON_RADIUS:
 		_ui_index = index
 		interact_pressed.emit()
 		return
-	for i in 3:
+	for i in 4:
 		if _top_button_rect(i).has_point(pos):
 			_ui_index = index
 			match i:
 				0: menu_pressed.emit()
 				1: filter_pressed.emit()
 				2: resolution_pressed.emit()
+				3: shadows_pressed.emit()
 			return
 	if pos.x < size.x * LEFT_ZONE:
 		if _stick_index == -1:
@@ -84,7 +98,13 @@ func _press(index: int, pos: Vector2) -> void:
 		_look_index = index
 
 
-func _drag(index: int, pos: Vector2, relative: Vector2) -> void:
+func _drag(index: int, pos: Vector2) -> void:
+	# Godot's web build computes ScreenDrag.relative per slot in the event's touch list,
+	# not per finger. When only one finger moves, that is the previous position of a
+	# *different* finger, so the look jumps by hundreds of pixels. Track positions
+	# per finger identifier ourselves and ignore event.relative.
+	var relative: Vector2 = pos - _last_pos.get(index, pos)
+	_last_pos[index] = pos
 	if index == _stick_index:
 		var offset := (pos - _stick_base).limit_length(STICK_RADIUS)
 		_stick_knob = _stick_base + offset
@@ -96,6 +116,7 @@ func _drag(index: int, pos: Vector2, relative: Vector2) -> void:
 
 
 func _release(index: int) -> void:
+	_last_pos.erase(index)
 	if index == _stick_index:
 		_stick_index = -1
 		move_vector = Vector2.ZERO
@@ -133,8 +154,8 @@ func _draw() -> void:
 	var font := ThemeDB.fallback_font
 	draw_string(font, c + Vector2(-60, 12), "USE", HORIZONTAL_ALIGNMENT_CENTER, 120, 34, active)
 
-	for i in 3:
+	for i in 4:
 		var r := _top_button_rect(i)
 		draw_rect(r, Color(0, 0, 0, 0.45))
 		draw_rect(r, line, false, 2.0)
-		draw_string(font, r.position + Vector2(0, 44), _labels[i], HORIZONTAL_ALIGNMENT_CENTER, r.size.x, 28, Color(1, 1, 1, 0.85))
+		draw_string(font, r.position + Vector2(0, 44), _labels[i], HORIZONTAL_ALIGNMENT_CENTER, r.size.x, 26, Color(1, 1, 1, 0.85))

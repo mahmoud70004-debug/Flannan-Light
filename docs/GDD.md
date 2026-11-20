@@ -1,6 +1,6 @@
 # Flannan Light — Game Design Document
 
-**Version:** 0.2 · **Updated:** 2026-11-19 · [Features](#feature-index) · [Decisions](#decisions) · [Change log](#change-log)
+**Version:** 0.3 · **Updated:** 2026-11-19 · [Features](#feature-index) · [Decisions](#decisions) · [Change log](#change-log)
 
 ## Summary
 You are a new lighthouse keeper in the early 1900s, alone on a remote island in an archipelago run by a government superintendent, Martin. Martin teaches you the daily routine on day 1, sails away, and visits every few days. You clean the tower, check the lamp, keep the store, watch ships and signal the far lighthouses. The routine is calm and repetitive on purpose; then it starts to break. The game is psychological horror through exploration only: no monsters, no combat. It ends when Martin, your only link to the world, starts to behave wrongly and you learn what the routine has been hiding.
@@ -39,7 +39,7 @@ wake → Martin's/log instructions → do daily tasks (clean, check lamp, store,
 | Daily routine | designed | MVP | Task list per day: clean tower/bedroom, check lamp faults, tidy store, sleep | [design](features/daily-routine/design.md) |
 | Ship signaling | designed | MVP | Spot a ship, read its bearing, signal the far lighthouses with the shutter lamp | [design](features/ship-signaling/design.md) |
 | Anomaly escalation | designed | MVP | Data-driven anomalies, tiers 0–4, plus Martin's visit scripts | [design](features/anomaly-escalation/design.md) |
-| Mobile controls | idea | MVP | Left stick, right-side look, Interact button, sensitivity setting | — |
+| Mobile controls | implemented | MVP | Floating left stick, right-side drag look tracked per finger (web touch relative is unreliable), Interact button | — |
 | 1-bit renderer | idea | MVP | Low-res SubViewport, nearest filter, ordered-dither B/W shader | — |
 | Menus and settings | idea | MVP | Title, new/continue, settings (sensitivity, brightness, dither, volume), pause | — |
 | Save and continue | idea | MVP | Autosave at sleep, one slot, stored in `user://` | — |
@@ -51,7 +51,8 @@ wake → Martin's/log instructions → do daily tasks (clean, check lamp, store,
 
 ## Milestones
 1. **M0, pipeline:** empty scene with stick + look on the user's phone via a web link · done when: user opens the link on their Android phone, moves, looks, and sees the build number.
-2. **M1, greybox island and lighthouse:** walkable exterior and interiors · done when: 60 fps on the user's phone with the 1-bit shader on.
+2. **M1a, look dev (the store room):** one fully lit reference room · done when: the user finds it readable and unsettling in one chosen filter, with draw calls under 100.
+2. **M1b, greybox island and lighthouse:** walkable exterior and interiors · done when: 60 fps on the user's phone with the 1-bit shader on.
 3. **M2, one full routine day:** all MVP tasks on day 1 + sleep + save · done when: day 1 is completable start to finish with the autosave verified by quitting and continuing.
 4. **M3, vertical slice:** days 1–4 incl. Martin's first visit and the first anomaly · done when: a tester finishes it and reports the first anomaly as unsettling, not confusing.
 5. **M4, alpha:** all 10 days, placeholder audio/art · done when: playable start to ending without blockers.
@@ -95,4 +96,5 @@ wake → Martin's/log instructions → do daily tasks (clean, check lamp, store,
 
 ## Change log
 **0.1 (2026-11-19):** first draft; three core features designed; D-001 to D-005 logged.
+**0.3 (2026-11-20):** look-dev phase added (store room, edge/contrast/vignette pass, merged geometry); touch look fixed.
 **0.2 (2026-11-19):** audio fixed (D-006), palette presets (D-007), deploy link (D-008); glimpse events and visual filters added to the index; pillar 2 rewritten.

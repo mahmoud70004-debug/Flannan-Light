@@ -51,6 +51,7 @@ func _ready() -> void:
 	box.add_child(_swatches)
 
 	box.add_child(_slider("Brightness", 0.5, 2.5, Settings.brightness, func(v: float) -> void: Settings.brightness = v))
+	box.add_child(_slider("Contrast", 0.8, 2.0, Settings.contrast, func(v: float) -> void: Settings.contrast = v))
 	box.add_child(_slider("Dither", 0.0, 1.0, Settings.dither_amount, func(v: float) -> void: Settings.dither_amount = v))
 	box.add_child(_slider("Look sensitivity", 0.001, 0.012, Settings.look_sensitivity, func(v: float) -> void: Settings.look_sensitivity = v))
 
