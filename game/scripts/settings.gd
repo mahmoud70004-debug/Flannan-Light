@@ -5,7 +5,9 @@ signal changed
 
 const PATH := "user://settings.cfg"
 const RENDER_HEIGHTS := [180, 240, 360, 480]
-const VERSION := 2                 ## bump to reset look defaults on everyone's phone
+const VERSION := 3                 ## stored with the file
+const LOOK_VERSION := 2            ## brightness/contrast/dither saved before this are discarded
+const PALETTE_VERSION := 3         ## palette order changed in v3, so older indexes are discarded
 
 var look_sensitivity: float = 0.0045   ## radians per UI pixel dragged
 var palette: int = 0
@@ -24,13 +26,14 @@ func _ready() -> void:
 		return
 	var version: int = cfg.get_value("meta", "version", 1)
 	look_sensitivity = clampf(cfg.get_value("input", "look_sensitivity", look_sensitivity), 0.001, 0.012)
-	palette = clampi(cfg.get_value("video", "palette", palette), 0, Palettes.count() - 1)
-	if version >= VERSION:
+	if version >= PALETTE_VERSION:
+		palette = clampi(cfg.get_value("video", "palette", palette), 0, Palettes.count() - 1)
+	if version >= LOOK_VERSION:
 		brightness = clampf(cfg.get_value("video", "brightness", brightness), 0.5, 2.5)
-	if version >= VERSION:
+	if version >= LOOK_VERSION:
 		dither_amount = clampf(cfg.get_value("video", "dither_amount", dither_amount), 0.0, 1.0)
 		dither_cell = clampi(int(cfg.get_value("video", "dither_cell", dither_cell)), 1, 3)
-	if version >= VERSION:
+	if version >= LOOK_VERSION:
 		contrast = clampf(cfg.get_value("video", "contrast", contrast), 0.8, 2.0)
 	render_height = cfg.get_value("video", "render_height", render_height)
 	if not RENDER_HEIGHTS.has(render_height):

@@ -22,6 +22,7 @@ var _iron: StandardMaterial3D
 var _batches := {}                ## [Material, layer] -> SurfaceTool (static visuals merged: one draw call each)
 var door: Door
 var porch_light: OmniLight3D
+var porch_mesh: MeshInstance3D
 
 
 func _ready() -> void:
@@ -120,6 +121,7 @@ func _build_porch_lamp() -> void:
 	lamp.position = pos
 	lamp.layers = 1
 	add_child(lamp)
+	porch_mesh = lamp
 	var light := OmniLight3D.new()
 	light.position = pos + Vector3(0, 0, 0.1)
 	light.omni_range = 7.0
@@ -337,6 +339,11 @@ func _build_lights() -> void:
 	var sw := _interactable("Lantern", Vector3(0.18, 0.28, 0.1), Vector3(0.5, 1.4, D / 2 - 0.06))
 	sw.interacted.connect(toggle_lantern)
 	_prop_box(Vector3(0.18, 0.28, 0.06), sw.position, _iron)
+
+
+func set_porch(on: bool) -> void:
+	porch_light.visible = on
+	porch_mesh.visible = on
 
 
 func toggle_lantern() -> void:

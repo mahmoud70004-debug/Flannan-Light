@@ -41,6 +41,13 @@ func _run() -> void:
 			inst.queue_free()
 			await process_frame
 
+	# Time-of-day presets are complete
+	var needed := ["sky", "sky_top", "sky_horizon", "fog", "fog_density", "fog_sky", "ambient", "light_dir", "light_energy", "vignette", "night", "beam", "porch", "sea_base", "sea_glint"]
+	for tod in Atmosphere.NAMES:
+		var preset: Dictionary = Atmosphere.PRESETS[tod]
+		var missing := needed.filter(func(k: String) -> bool: return not preset.has(k))
+		_check(missing.is_empty(), "time preset '%s' has every key %s" % [tod, missing])
+
 	# Island terrain
 	var island = (load("res://scripts/island.gd") as GDScript).new()   # runtime load: autoloads are not visible while compiling this file
 	root.add_child(island)

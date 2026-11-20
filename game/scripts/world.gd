@@ -12,6 +12,9 @@ var _hud: Hud
 var _room: StoreRoom
 var _island: Island
 var _env: Environment
+var _sun: DirectionalLight3D
+var _time := "day"
+var _vignette := 0.3
 var _spawn := Vector3.ZERO
 
 
@@ -58,46 +61,45 @@ func _apply_settings() -> void:
 	_post_mat.set_shader_parameter("dither_amount", Settings.dither_amount)
 	_post_mat.set_shader_parameter("dither_cell", Settings.dither_cell)
 	_post_mat.set_shader_parameter("contrast", Settings.contrast)
+	_post_mat.set_shader_parameter("vignette", _vignette)
 	if _room:
 		_room.apply_shadows(Settings.shadows)
 	if _hud:
-		_hud.set_info("%s · %dp · shadows %s · %s" % [Palettes.preset_name(Settings.palette), h, ["off", "window", "window+lantern"][Settings.shadows], BuildInfo.label()])
+		_hud.set_info("%s · %s · %dp · shadows %s · %s" % [Palettes.preset_name(Settings.palette), _time, h, ["off", "window", "window+lantern"][Settings.shadows], BuildInfo.label()])
 
 
 # --- 3D world ---------------------------------------------------------------
 
 func _build_world() -> void:
-	var env := Environment.new()
-	env.background_mode = Environment.BG_COLOR
-	env.background_color = Color.BLACK
-	env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
-	env.ambient_light_color = Color(0.2, 0.2, 0.22)
-	env.fog_enabled = true
-	env.fog_light_color = Color.BLACK
-	env.fog_density = 0.011
-	_env = env
+	_env = Environment.new()
 	var world_env := WorldEnvironment.new()
-	world_env.environment = env
+	world_env.environment = _env
 	_view.add_child(world_env)
 
 	_island = Island.new()
 	_view.add_child(_island)
 
-	# Moonlight lights the outdoors (layer 1) only; the store room has its own lights.
-	var moon := DirectionalLight3D.new()
-	moon.transform = Transform3D(Basis.looking_at(-_island.moon_direction(), Vector3.UP), Vector3.ZERO)
-	moon.light_energy = 1.3
-	moon.light_cull_mask = 1
-	_view.add_child(moon)
+	# Sun / moon lights the outdoors (visual layer 1) only; the store room has its own lights.
+	_sun = DirectionalLight3D.new()
+	_sun.light_cull_mask = 1
+	_view.add_child(_sun)
 
 	_room = StoreRoom.new()
 	_room.position = _island.hut_position()
 	_view.add_child(_room)
 
+	_time = "day"
+	if OS.has_feature("web"):
+		var t := str(JavaScriptBridge.eval("new URLSearchParams(location.search).get('time') || ''"))
+		if Atmosphere.NAMES.has(t):
+			_time = t
+	_vignette = Atmosphere.apply(_time, _env, _sun, _island, _room)
+
 	_player = Player.new()
 	_spawn = _island.spawn_point()
 	_view.add_child(_player)
 	_player.position = _spawn
+	_player.look_by(Vector2(0.0, -130.0), 0.001)    # tilt up a little: the tower stands above the ramp
 	_debug_spawn()
 
 
@@ -111,6 +113,9 @@ func _debug_spawn() -> void:
 			_player.position = _island.hut_position() + Vector3(1.6, 0.1, 4.5)
 		"top":
 			_player.position = Vector3(0, Island.PLATEAU + 0.1, 6.0)
+		"far":
+			_player.position = Vector3(-6.0, Island.PLATEAU + 0.1, 12.0)
+			_player.look_by(Vector2(675.0, -60.0), 0.001)
 		"inside":
 			_player.position = _island.hut_position() + Vector3(0.2, 0.1, 1.7)
 		"sky":

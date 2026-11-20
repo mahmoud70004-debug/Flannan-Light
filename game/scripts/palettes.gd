@@ -5,11 +5,12 @@ class_name Palettes
 const MAX_TONES := 6
 
 const PRESETS := [
-	{"name": "REFERENCE", "colors": [Color("0a0506"), Color("2b1514"), Color("6b3d37"), Color("b9806f"), Color("e8c9b0")]},
-	{"name": "1-BIT", "colors": [Color("000000"), Color("f2f2f2")]},
 	{"name": "ASH", "colors": [Color("050505"), Color("454545"), Color("9a9a9a"), Color("ececec")]},
-	{"name": "WARM", "colors": [Color("0b0705"), Color("4a2c1f"), Color("a06a48"), Color("f0d9b5")]},
+	{"name": "SILVER", "colors": [Color("050607"), Color("3d4348"), Color("959ca1"), Color("e6e9ea")]},
 	{"name": "COLD", "colors": [Color("04070b"), Color("1d3040"), Color("5f8097"), Color("d8e6ee")]},
+	{"name": "REFERENCE", "colors": [Color("0a0506"), Color("2b1514"), Color("6b3d37"), Color("b9806f"), Color("e8c9b0")]},
+	{"name": "WARM", "colors": [Color("0b0705"), Color("4a2c1f"), Color("a06a48"), Color("f0d9b5")]},
+	{"name": "1-BIT", "colors": [Color("000000"), Color("f2f2f2")]},
 ]
 
 

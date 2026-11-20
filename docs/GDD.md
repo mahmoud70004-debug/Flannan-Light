@@ -1,6 +1,6 @@
 # Flannan Light — Game Design Document
 
-**Version:** 0.4 · **Updated:** 2026-11-19 · [Features](#feature-index) · [Decisions](#decisions) · [Change log](#change-log)
+**Version:** 0.5 · **Updated:** 2026-11-19 · [Features](#feature-index) · [Decisions](#decisions) · [Change log](#change-log)
 
 ## Summary
 You are a new lighthouse keeper in the early 1900s, alone on a remote island in an archipelago run by a government superintendent, Martin. Martin teaches you the daily routine on day 1, sails away, and visits every few days. You clean the tower, check the lamp, keep the store, watch ships and signal the far lighthouses. The routine is calm and repetitive on purpose; then it starts to break. The game is psychological horror through exploration only: no monsters, no combat. It ends when Martin, your only link to the world, starts to behave wrongly and you learn what the routine has been hiding.
@@ -86,6 +86,8 @@ wake → Martin's/log instructions → do daily tasks (clean, check lamp, store,
 | D-008 | 2026-11-19 | Test link is GitHub Pages at `https://mahmoud70004-debug.github.io/Flannan-Light/`, auto-deployed by Actions on every push to `main` | Cloudflare/Netlify | User's required link format | M0 |
 | D-009 | 2026-11-20 | Outdoor and indoor lighting separated by visual layers (outdoor layer 1, interior layer 2); hut walls carry an outer skin on layer 1 | one shared light set | Moonlight must not reach the store room through walls; no shadows needed | Island, Store room |
 | D-010 | 2026-11-20 | Dither default 0.5 with a selectable grain size; texture pixel noise reduced | keep full dither | User: too many dither dots, but never smooth. Hard bands plus crisp edges instead of heavy noise | Visual filters |
+| D-011 | 2026-11-20 | Day 1 starts in overcast daylight, at the end of the jetty; dusk and night are later presets (`Atmosphere`) | start at night | User: the game must not begin at night. Daylight also sells the 1900 feel and makes the later nights land harder | Atmosphere, [anomaly-escalation](features/anomaly-escalation/design.md) |
+| D-012 | 2026-11-20 | Default look is ASH; SILVER (cool grey between ASH and COLD) added; COLD kept | REFERENCE default | User picked ASH then COLD for the 1900 feel | Visual filters |
 | D-005 | 2026-11-19 | 3D renders in a low-res SubViewport, UI in the native-res window | one low-res window for all | Crisp UI at no extra GPU cost, pixel look for the world | 1-bit renderer |
 
 ## Open questions
@@ -100,6 +102,7 @@ wake → Martin's/log instructions → do daily tasks (clean, check lamp, store,
 
 ## Change log
 **0.1 (2026-11-19):** first draft; three core features designed; D-001 to D-005 logged.
+**0.5 (2026-11-20):** daylight start, time-of-day presets, whitewashed tower, faceted rocks, ASH default; D-011, D-012.
 **0.4 (2026-11-20):** island, door animation, lighting layers; D-009, D-010.
 **0.3 (2026-11-20):** look-dev phase added (store room, edge/contrast/vignette pass, merged geometry); touch look fixed.
 **0.2 (2026-11-19):** audio fixed (D-006), palette presets (D-007), deploy link (D-008); glimpse events and visual filters added to the index; pillar 2 rewritten.

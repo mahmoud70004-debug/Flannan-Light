@@ -3,11 +3,12 @@ class_name Tex
 ## Generated at startup in a few ms, so there are no image assets to ship yet.
 
 static func _make(size: int, fn: Callable) -> ImageTexture:
-	var img := Image.create(size, size, false, Image.FORMAT_RGB8)
+	var img := Image.create(size, size, true, Image.FORMAT_RGB8)
 	for y in size:
 		for x in size:
 			var v: float = clampf(fn.call(x, y), 0.0, 1.0)
 			img.set_pixel(x, y, Color(v, v, v))
+	img.generate_mipmaps()
 	return ImageTexture.create_from_image(img)
 
 
@@ -55,6 +56,12 @@ static func rough() -> ImageTexture:
 		return 0.34 + (_hash(x, y) - 0.5) * 0.03 + (_hash(x / 4, y / 4) - 0.5) * 0.07)
 
 
+## 32 px = 2 m. Whitewashed plaster: almost flat, with big soft patches.
+static func plaster() -> ImageTexture:
+	return _make(32, func(x: int, y: int) -> float:
+		return 0.80 + (_hash(x / 8, y / 8) - 0.5) * 0.10 + (_hash(x, y) - 0.5) * 0.02)
+
+
 ## World-space triplanar material so boxes of any size share one texel density.
 static func material(tex: Texture2D, tile_m: float, tint := 1.0) -> StandardMaterial3D:
 	var m := StandardMaterial3D.new()
@@ -63,6 +70,7 @@ static func material(tex: Texture2D, tile_m: float, tint := 1.0) -> StandardMate
 	m.uv1_triplanar = true
 	m.uv1_world_triplanar = true
 	m.uv1_scale = Vector3.ONE / tile_m
-	m.texture_filter = BaseMaterial3D.TEXTURE_FILTER_NEAREST
+	# Nearest keeps texels crisp up close; mipmaps stop the moire shimmer far away.
+	m.texture_filter = BaseMaterial3D.TEXTURE_FILTER_NEAREST_WITH_MIPMAPS
 	m.roughness = 1.0
 	return m
