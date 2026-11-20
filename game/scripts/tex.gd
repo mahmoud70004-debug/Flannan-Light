@@ -26,7 +26,7 @@ static func bricks() -> ImageTexture:
 		if y % 8 == 0 or bx == 0:
 			return 0.20
 		var base := 0.38 + _hash(row, (x + off) / 16) * 0.16
-		return base + (_hash(x, y) - 0.5) * 0.07)
+		return base + (_hash(x, y) - 0.5) * 0.02)
 
 
 ## 64 px = 1 m. Vertical planks with grain.
@@ -37,7 +37,7 @@ static func planks() -> ImageTexture:
 			return 0.08
 		var base := 0.42 + _hash(plank, 7) * 0.16
 		var grain := sin(float(y) * 0.55 + float(plank) * 2.3 + _hash(x, y / 8) * 3.0) * 0.05
-		return base + grain + (_hash(x, y) - 0.5) * 0.06)
+		return base + grain * 0.7 + (_hash(x, y) - 0.5) * 0.02)
 
 
 ## 32 px = 0.5 m. Woven sacking.
@@ -46,13 +46,13 @@ static func burlap() -> ImageTexture:
 		var weave := 0.07 if (x + y) % 2 == 0 else -0.04
 		if x % 8 == 0 or y % 8 == 0:
 			weave -= 0.10
-		return 0.55 + weave + (_hash(x, y) - 0.5) * 0.16)
+		return 0.55 + weave * 0.8 + (_hash(x, y) - 0.5) * 0.05)
 
 
 ## 32 px = 1 m. Rough dark plaster / metal.
 static func rough() -> ImageTexture:
 	return _make(32, func(x: int, y: int) -> float:
-		return 0.30 + (_hash(x, y) - 0.5) * 0.18 + (_hash(x / 4, y / 4) - 0.5) * 0.12)
+		return 0.34 + (_hash(x, y) - 0.5) * 0.03 + (_hash(x / 4, y / 4) - 0.5) * 0.07)
 
 
 ## World-space triplanar material so boxes of any size share one texel density.

@@ -52,6 +52,7 @@ func _ready() -> void:
 
 	box.add_child(_slider("Brightness", 0.5, 2.5, Settings.brightness, func(v: float) -> void: Settings.brightness = v))
 	box.add_child(_slider("Contrast", 0.8, 2.0, Settings.contrast, func(v: float) -> void: Settings.contrast = v))
+	box.add_child(_cell_toggle())
 	box.add_child(_slider("Dither", 0.0, 1.0, Settings.dither_amount, func(v: float) -> void: Settings.dither_amount = v))
 	box.add_child(_slider("Look sensitivity", 0.001, 0.012, Settings.look_sensitivity, func(v: float) -> void: Settings.look_sensitivity = v))
 
@@ -97,6 +98,17 @@ func _slider(title: String, lo: float, hi: float, value: float, setter: Callable
 		Settings.save())
 	col.add_child(s)
 	return col
+
+
+func _cell_toggle() -> Control:
+	var b := _button("Dither grain: %s" % ["fine", "chunky", "coarse"][Settings.dither_cell - 1])
+	b.custom_minimum_size = Vector2(0, 56)
+	b.add_theme_font_size_override("font_size", 26)
+	b.pressed.connect(func() -> void:
+		Settings.dither_cell = Settings.dither_cell % 3 + 1
+		Settings.save()
+		b.text = "Dither grain: %s" % ["fine", "chunky", "coarse"][Settings.dither_cell - 1])
+	return b
 
 
 func _step_palette(dir: int) -> void:

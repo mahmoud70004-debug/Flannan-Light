@@ -33,7 +33,7 @@ func _ready() -> void:
 	camera = Camera3D.new()
 	camera.fov = 72.0
 	camera.near = 0.05
-	camera.far = 90.0
+	camera.far = 320.0
 	head.add_child(camera)
 
 	_ray = RayCast3D.new()
@@ -48,8 +48,13 @@ func look_by(relative: Vector2, sensitivity: float) -> void:
 	head.rotation.x = _pitch
 
 
-func target() -> Interactable:
-	return _ray.get_collider() as Interactable if _ray.is_colliding() else null
+## The thing in reach that has an interact() method and a prompt, or null.
+func target() -> CollisionObject3D:
+	if _ray.is_colliding():
+		var c := _ray.get_collider() as CollisionObject3D
+		if c and c.has_method("interact"):
+			return c
+	return null
 
 
 func _physics_process(delta: float) -> void:

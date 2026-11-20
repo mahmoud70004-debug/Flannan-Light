@@ -13,7 +13,8 @@ uniform vec3 c4 = vec3(1.0);
 uniform vec3 c5 = vec3(1.0);
 uniform float brightness = 1.0;
 uniform float contrast = 1.25;
-uniform float dither_amount = 1.0;
+uniform float dither_amount = 0.5;
+uniform int dither_cell = 1;
 uniform float vignette = 0.55;
 uniform float edge_strength = 0.8;
 uniform float edge_threshold = 0.12;
@@ -49,7 +50,7 @@ void fragment() {
 	lum *= 1.0 - edge_strength * smoothstep(edge_threshold, edge_threshold * 2.0, edge);
 	lum = clamp(lum, 0.0, 1.0);
 
-	ivec2 p = ivec2(UV * vec2(textureSize(TEXTURE, 0)));
+	ivec2 p = ivec2(UV * vec2(textureSize(TEXTURE, 0))) / max(dither_cell, 1);
 	float threshold = (BAYER[(p.x % 4) + (p.y % 4) * 4] + 0.5) / 16.0;
 	threshold = mix(0.5, threshold, dither_amount);
 	float v = lum * float(levels - 1);

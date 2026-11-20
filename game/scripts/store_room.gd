@@ -19,7 +19,9 @@ var _wood: StandardMaterial3D
 var _dark_wood: StandardMaterial3D
 var _sack: StandardMaterial3D
 var _iron: StandardMaterial3D
-var _batches := {}                ## Material -> SurfaceTool (static visuals merged: one draw call per material)
+var _batches := {}                ## [Material, layer] -> SurfaceTool (static visuals merged: one draw call each)
+var door: Door
+var porch_light: OmniLight3D
 
 
 func _ready() -> void:
@@ -41,43 +43,151 @@ func apply_shadows(level: int) -> void:
 	lantern_light.shadow_enabled = level >= 2
 
 
-func _batch(mesh: Mesh, xform: Transform3D, mat: Material) -> void:
-	if not _batches.has(mat):
+## Interior visuals live on layer 2 (lit by the room's lights only). The outside
+## skin lives on layer 1 (lit by the moon). Layers keep moonlight out of the room.
+func _batch(mesh: Mesh, xform: Transform3D, mat: Material, layer := 2) -> void:
+	var key := [mat, layer]
+	if not _batches.has(key):
 		var st := SurfaceTool.new()
 		st.begin(Mesh.PRIMITIVE_TRIANGLES)
-		_batches[mat] = st
-	(_batches[mat] as SurfaceTool).append_from(mesh, 0, xform)
+		_batches[key] = st
+	(_batches[key] as SurfaceTool).append_from(mesh, 0, xform)
 
 
 func _flush_batches() -> void:
-	for mat: Material in _batches:
-		var st: SurfaceTool = _batches[mat]
+	for key in _batches:
+		var st: SurfaceTool = _batches[key]
 		st.generate_tangents()
 		var mi := MeshInstance3D.new()
 		mi.mesh = st.commit()
-		mi.material_override = mat
+		mi.material_override = key[0]
+		mi.layers = key[1]
 		add_child(mi)
 	_batches.clear()
 
 
 # --- shell -------------------------------------------------------------------
 
+const DOOR_X := 1.6        ## doorway centre on the front wall
+const DOOR_W := 1.1
+const DOOR_H := 2.1
+const WALL_T := 0.3
+
+
 func _build_shell() -> void:
-	var t := 0.3
+	var t := WALL_T
 	_solid(Vector3(W + 2 * t, t, D + 2 * t), Vector3(0, -t / 2, 0), _wood)                 # floor
-	_solid(Vector3(W + 2 * t, t, D + 2 * t), Vector3(0, H + t / 2, 0), _dark_wood)         # ceiling
-	_solid(Vector3(W + 2 * t, H, t), Vector3(0, H / 2, -D / 2 - t / 2), _stone)            # back
-	_solid(Vector3(W + 2 * t, H, t), Vector3(0, H / 2, D / 2 + t / 2), _stone)             # front
-	_solid(Vector3(t, H, D), Vector3(-W / 2 - t / 2, H / 2, 0), _stone)                    # left
-	_solid(Vector3(t, H, D), Vector3(W / 2 + t / 2, H / 2, 0), _stone)                     # right
+	_wall(Vector3(W + 2 * t, t, D + 2 * t), Vector3(0, H + t / 2, 0), _dark_wood)          # ceiling
+	_wall(Vector3(W + 2 * t, H, t), Vector3(0, H / 2, -D / 2 - t / 2), _stone)             # back
+	_wall(Vector3(t, H, D), Vector3(-W / 2 - t / 2, H / 2, 0), _stone)                     # left
+	_wall(Vector3(t, H, D), Vector3(W / 2 + t / 2, H / 2, 0), _stone)                      # right
+
+	# Front wall with a doorway: left segment, right segment, lintel.
+	var fz := D / 2 + t / 2
+	var x0 := DOOR_X - DOOR_W / 2
+	var x1 := DOOR_X + DOOR_W / 2
+	var left_w := x0 - (-W / 2 - t)
+	var right_w := (W / 2 + t) - x1
+	_wall(Vector3(left_w, H, t), Vector3(-W / 2 - t + left_w / 2, H / 2, fz), _stone)
+	_wall(Vector3(right_w, H, t), Vector3(x1 + right_w / 2, H / 2, fz), _stone)
+	_wall(Vector3(DOOR_W, H - DOOR_H, t), Vector3(DOOR_X, DOOR_H + (H - DOOR_H) / 2, fz), _stone)
+
 	for z in [-1.8, -0.2, 1.4]:                                                            # ceiling beams
 		_prop_box(Vector3(W, 0.22, 0.22), Vector3(0, H - 0.11, z), _dark_wood)
 
-	# Door (front wall, behind the player's spawn).
-	_prop_box(Vector3(1.1, 2.1, 0.12), Vector3(1.6, 1.05, D / 2 - 0.06), _dark_wood)
-	_prop_box(Vector3(1.3, 0.12, 0.16), Vector3(1.6, 2.16, D / 2 - 0.08), _iron)
-	var door := _interactable("Door", Vector3(1.0, 2.0, 0.3), Vector3(1.6, 1.0, D / 2 - 0.15))
-	door.interacted.connect(func() -> void: pass)
+	_build_door(Vector3(x0, 0.0, fz))
+	_build_porch_lamp()
+
+
+## A hanging lamp outside the door: the island's only warm light at the hut, and a
+## focal point from far away. Outdoor layer (1), so it never lights the room.
+func _build_porch_lamp() -> void:
+	var pos := Vector3(DOOR_X + 0.95, 2.05, D / 2 + WALL_T + 0.25)
+	var bracket := BoxMesh.new()
+	bracket.size = Vector3(0.05, 0.05, 0.3)
+	_batch(bracket, Transform3D(Basis(), pos + Vector3(0, 0.18, -0.12)), _iron, 1)
+	var lamp := MeshInstance3D.new()
+	var cyl := CylinderMesh.new()
+	cyl.top_radius = 0.08
+	cyl.bottom_radius = 0.06
+	cyl.height = 0.18
+	cyl.radial_segments = 8
+	lamp.mesh = cyl
+	var em := StandardMaterial3D.new()
+	em.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	em.albedo_color = Color.WHITE
+	lamp.material_override = em
+	lamp.position = pos
+	lamp.layers = 1
+	add_child(lamp)
+	var light := OmniLight3D.new()
+	light.position = pos + Vector3(0, 0, 0.1)
+	light.omni_range = 7.0
+	light.light_energy = 2.4
+	light.omni_attenuation = 1.2
+	light.light_cull_mask = 1
+	add_child(light)
+	porch_light = light
+
+
+## A wall slab: interior face on layer 2, plus a slightly larger skin on layer 1
+## so it looks right (and catches moonlight) from outside.
+func _wall(size: Vector3, pos: Vector3, mat: Material) -> void:
+	_solid(size, pos, mat)
+	var skin := BoxMesh.new()
+	skin.size = size + Vector3.ONE * 0.08
+	_batch(skin, Transform3D(Basis(), pos), mat, 1)
+
+
+func _build_door(hinge: Vector3) -> void:
+	door = Door.new()
+	door.collision_layer = 1 | 2
+	door.position = hinge + Vector3(0, DOOR_H / 2, 0)
+	var shape := CollisionShape3D.new()
+	var bs := BoxShape3D.new()
+	bs.size = Vector3(DOOR_W - 0.04, DOOR_H - 0.04, 0.12)
+	shape.shape = bs
+	shape.position = Vector3(DOOR_W / 2, 0, 0)
+	door.add_child(shape)
+
+	var mi := MeshInstance3D.new()
+	var box := BoxMesh.new()
+	box.size = Vector3(DOOR_W - 0.04, DOOR_H - 0.04, 0.12)
+	mi.mesh = box
+	mi.material_override = _dark_wood
+	mi.layers = 1 | 2                      # lit by the moon outside and the lantern inside
+	mi.position = Vector3(DOOR_W / 2, 0, 0)
+	door.add_child(mi)
+	for y in [-0.7, 0.7]:                  # iron straps
+		var strap := MeshInstance3D.new()
+		var sb := BoxMesh.new()
+		sb.size = Vector3(DOOR_W - 0.1, 0.1, 0.15)
+		strap.mesh = sb
+		strap.material_override = _iron
+		strap.layers = 1 | 2
+		strap.position = Vector3(DOOR_W / 2, y, 0)
+		door.add_child(strap)
+	var handle := MeshInstance3D.new()
+	var hb := BoxMesh.new()
+	hb.size = Vector3(0.05, 0.18, 0.2)
+	handle.mesh = hb
+	handle.material_override = _iron
+	handle.layers = 1 | 2
+	handle.position = Vector3(DOOR_W - 0.15, 0.0, 0)
+	door.add_child(handle)
+	add_child(door)
+
+	var catch_body := DoorCatch.new()
+	catch_body.door = door
+	catch_body.collision_layer = 2          # interaction ray only; the player walks straight through
+	catch_body.collision_mask = 0
+	var cshape := CollisionShape3D.new()
+	var cbox := BoxShape3D.new()
+	cbox.size = Vector3(DOOR_W - 0.1, DOOR_H - 0.1, 0.4)
+	cshape.shape = cbox
+	catch_body.add_child(cshape)
+	catch_body.position = hinge + Vector3(DOOR_W / 2, DOOR_H / 2, 0)
+	add_child(catch_body)
 
 
 # --- props -------------------------------------------------------------------
@@ -189,6 +299,7 @@ func _build_lights() -> void:
 	_lantern_mat.emission_energy_multiplier = 3.0
 	lamp.material_override = _lantern_mat
 	lamp.position = Vector3(0.0, 2.1, -0.3)
+	lamp.layers = 2
 	add_child(lamp)
 
 	lantern_light = OmniLight3D.new()
@@ -196,6 +307,7 @@ func _build_lights() -> void:
 	lantern_light.omni_range = 7.5
 	lantern_light.light_energy = 3.4
 	lantern_light.omni_attenuation = 1.3
+	lantern_light.light_cull_mask = 2
 	add_child(lantern_light)
 
 	# A high window on the left wall: a pale shaft of light across the sacks.
@@ -209,11 +321,13 @@ func _build_lights() -> void:
 	pane.material_override = pm
 	pane.position = Vector3(-W / 2 + 0.02, 2.2, -0.8)
 	pane.rotation_degrees.y = 90
+	pane.layers = 2
 	add_child(pane)
 
 	window_light = SpotLight3D.new()
-	window_light.position = Vector3(-W / 2 + 0.3, 2.3, -0.8)
-	window_light.look_at_from_position(window_light.position, Vector3(1.8, 0.0, 0.2), Vector3.UP)
+	var wpos := Vector3(-W / 2 + 0.3, 2.3, -0.8)
+	window_light.transform = Transform3D(Basis.looking_at(Vector3(1.8, 0.0, 0.2) - wpos, Vector3.UP), wpos)
+	window_light.light_cull_mask = 2
 	window_light.spot_range = 9.0
 	window_light.spot_angle = 28.0
 	window_light.light_energy = 3.0

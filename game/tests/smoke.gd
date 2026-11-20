@@ -41,6 +41,45 @@ func _run() -> void:
 			inst.queue_free()
 			await process_frame
 
+	# Island terrain
+	var island = (load("res://scripts/island.gd") as GDScript).new()   # runtime load: autoloads are not visible while compiling this file
+	root.add_child(island)
+	await process_frame
+	_check(absf(island.height_at(0.0, -20.0) - island.PLATEAU) < 4.0, "island top is about plateau height")
+	_check(island.height_at(0.0, 60.0) < 0.0 and island.height_at(-60.0, 0.0) < 0.0, "sea around the island")
+	_check(island.spawn_point().y > 0.0, "spawn is above the sea")
+	var prev: float = island.height_at(0.0, 8.0)
+	var steepest := 0.0
+	var z := 9.0
+	while z <= 30.0:
+		var h: float = island.height_at(0.0, z)
+		steepest = maxf(steepest, absf(h - prev))
+		if h > prev + 0.001:
+			_check(false, "ramp descends monotonically at z=%d" % int(z))
+		prev = h
+		z += 1.0
+	_check(steepest < 0.85, "ramp is walkable (max %.2f m rise per metre)" % steepest)
+	_check(absf(island.height_at(island.HUT_CENTER.x, island.HUT_CENTER.y) - (island.PLATEAU - 0.08)) < 0.02, "hut pad is level")
+	island.queue_free()
+
+	# Door animation
+	var room = (load("res://scripts/store_room.gd") as GDScript).new()
+	root.add_child(room)
+	await process_frame
+	_check(room.door != null and not room.door.is_open, "door exists and starts closed")
+	room.door.interact()
+	await create_timer(1.1).timeout
+	_check(room.door.is_open and absf(room.door.rotation_degrees.y - room.door.open_angle) < 0.5, "door swings open")
+	room.door.interact()
+	await create_timer(1.0).timeout
+	_check(not room.door.is_open and absf(room.door.rotation_degrees.y) < 0.5, "door swings closed")
+	var catch_found := false
+	for c in room.get_children():
+		if c is DoorCatch:
+			catch_found = c.door == room.door and c.prompt == room.door.prompt
+	_check(catch_found, "doorway has an interaction catch that follows the door's prompt")
+	room.queue_free()
+
 	# Settings round-trip
 	var s := root.get_node_or_null("Settings")
 	_check(s != null, "Settings autoload present")
