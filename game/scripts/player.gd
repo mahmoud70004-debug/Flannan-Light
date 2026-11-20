@@ -18,6 +18,8 @@ var _pitch := 0.0
 
 
 func _ready() -> void:
+	floor_snap_length = 0.6          # stay glued to stairs and ramps when walking down
+	floor_max_angle = deg_to_rad(46.0)
 	var shape := CollisionShape3D.new()
 	var capsule := CapsuleShape3D.new()
 	capsule.radius = 0.35

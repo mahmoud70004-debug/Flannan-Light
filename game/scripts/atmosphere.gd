@@ -7,7 +7,7 @@ const PRESETS := {
 	"day": {
 		"sky": true, "sky_top": Color(0.36, 0.38, 0.41), "sky_horizon": Color(0.56, 0.58, 0.60),
 		"fog": Color(0.56, 0.58, 0.60), "fog_density": 0.013, "fog_sky": 0.35,
-		"ambient": Color(0.40, 0.42, 0.45), "light_dir": Vector3(-0.75, 0.45, -0.30), "light_energy": 1.0,
+		"ambient": Color(0.40, 0.42, 0.45), "light_dir": Vector3(-0.5, 0.5, 0.65), "light_energy": 1.1,
 		"vignette": 0.12, "night": false, "beam": false, "porch": false, "sea_base": 0.24, "sea_glint": 0.22,
 	},
 	"dusk": {
@@ -28,7 +28,7 @@ const NAMES := ["day", "dusk", "night"]
 
 
 ## Returns the vignette strength for the post shader.
-static func apply(name: String, env: Environment, sun: DirectionalLight3D, island: Island, room: StoreRoom) -> float:
+static func apply(name: String, env: Environment, sun: DirectionalLight3D, island: Island, lighthouse: Lighthouse) -> float:
 	var p: Dictionary = PRESETS[name if PRESETS.has(name) else "day"]
 	if p["sky"]:
 		var sky_mat := ProceduralSkyMaterial.new()
@@ -58,7 +58,7 @@ static func apply(name: String, env: Environment, sun: DirectionalLight3D, islan
 	sun.sky_mode = DirectionalLight3D.SKY_MODE_LIGHT_ONLY            # no sun disc in the sky
 
 	island.set_night_sky(p["night"], dir)
-	island.set_beam(p["beam"])
+	lighthouse.set_beam(p["beam"])
 	island.set_sea(p["sea_base"], p["sea_glint"])
-	room.set_porch(p["porch"])
+	lighthouse.set_porch(p["porch"])
 	return p["vignette"]

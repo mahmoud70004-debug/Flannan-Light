@@ -9,7 +9,8 @@ var _post_mat: ShaderMaterial
 var _player: Player
 var _controls: TouchControls
 var _hud: Hud
-var _room: StoreRoom
+var _lighthouse: Lighthouse
+var _safe := Vector3.ZERO
 var _island: Island
 var _env: Environment
 var _sun: DirectionalLight3D
@@ -62,10 +63,16 @@ func _apply_settings() -> void:
 	_post_mat.set_shader_parameter("dither_cell", Settings.dither_cell)
 	_post_mat.set_shader_parameter("contrast", Settings.contrast)
 	_post_mat.set_shader_parameter("vignette", _vignette)
-	if _room:
-		_room.apply_shadows(Settings.shadows)
+	if _lighthouse:
+		_lighthouse.apply_shadows(Settings.shadows)
+	if _sun:
+		_sun.shadow_enabled = Settings.shadows >= 1
+		_sun.directional_shadow_mode = DirectionalLight3D.SHADOW_ORTHOGONAL
+		_sun.directional_shadow_max_distance = 80.0
+		_sun.shadow_bias = 0.08
+		_sun.shadow_normal_bias = 1.2
 	if _hud:
-		_hud.set_info("%s · %s · %dp · shadows %s · %s" % [Palettes.preset_name(Settings.palette), _time, h, ["off", "window", "window+lantern"][Settings.shadows], BuildInfo.label()])
+		_hud.set_info("%s · %s · %dp · shadows %s · %s" % [Palettes.preset_name(Settings.palette), _time, h, ["off", "sun+window", "sun+window+lantern"][Settings.shadows], BuildInfo.label()])
 
 
 # --- 3D world ---------------------------------------------------------------
@@ -84,47 +91,64 @@ func _build_world() -> void:
 	_sun.light_cull_mask = 1
 	_view.add_child(_sun)
 
-	_room = StoreRoom.new()
-	_room.position = _island.hut_position()
-	_view.add_child(_room)
+	_lighthouse = Lighthouse.new()
+	_lighthouse.position = _island.lighthouse_position()
+	_view.add_child(_lighthouse)
 
 	_time = "day"
 	if OS.has_feature("web"):
 		var t := str(JavaScriptBridge.eval("new URLSearchParams(location.search).get('time') || ''"))
 		if Atmosphere.NAMES.has(t):
 			_time = t
-	_vignette = Atmosphere.apply(_time, _env, _sun, _island, _room)
+	_vignette = Atmosphere.apply(_time, _env, _sun, _island, _lighthouse)
 
 	_player = Player.new()
 	_spawn = _island.spawn_point()
 	_view.add_child(_player)
 	_player.position = _spawn
-	_player.look_by(Vector2(0.0, -130.0), 0.001)    # tilt up a little: the tower stands above the ramp
+	_player.rotation.y = _island.spawn_yaw()        # facing the island
+	_safe = _spawn
 	_debug_spawn()
 
 
-## Web debug aid: add ?spawn=door (or ?spawn=top) to the URL to start near that spot.
+## Web debug aid: add ?spawn=gate|door|inside|stairs|store|far|sky to the URL.
 func _debug_spawn() -> void:
 	if not OS.has_feature("web"):
 		return
 	var where := str(JavaScriptBridge.eval("new URLSearchParams(location.search).get('spawn') || ''"))
+	var lh := _lighthouse.position
 	match where:
+		"gate":
+			var gp := _island.path_points()
+			_player.position = gp[gp.size() - 1] + Vector3(0, 0.2, 3.5)
+			var gd: Vector3 = lh - _player.position
+			_player.rotation.y = atan2(-gd.x, -gd.z)
 		"door":
-			_player.position = _island.hut_position() + Vector3(1.6, 0.1, 4.5)
-		"top":
-			_player.position = Vector3(0, Island.PLATEAU + 0.1, 6.0)
-		"far":
-			_player.position = Vector3(-6.0, Island.PLATEAU + 0.1, 12.0)
-			_player.look_by(Vector2(675.0, -60.0), 0.001)
+			_player.position = lh + Vector3(0, 0.1, 11.2)
+			_player.rotation.y = 0.0
 		"inside":
-			_player.position = _island.hut_position() + Vector3(0.2, 0.1, 1.7)
+			_player.position = lh + Vector3(1.0, 0.2, 7.7)
+			_player.rotation.y = 0.0
+		"stairs":
+			_player.position = lh + Vector3(-4.1, 0.2, 4.0)
+			_player.rotation.y = PI
+		"store":
+			_player.position = lh + Vector3(-4.1, Lighthouse.STORE_FLOOR_Y + 0.1, 10.6)
+			_player.rotation.y = PI
+		"far":
+			var pts := _island.path_points()
+			_player.position = pts[maxi(pts.size() - 6, 0)] + Vector3(0, 0.1, 0)
+			var d := lh - _player.position
+			_player.rotation.y = atan2(-d.x, -d.z)
 		"sky":
-			_player.position = Vector3(0, 75.0, 75.0)
-			_player.look_by(Vector2(0, 800.0), 0.001)
+			_player.position = lh + Vector3(40.0, 70.0, 80.0)
+			_player.rotation.y = 0.5
+			_player.look_by(Vector2(0, 700.0), 0.001)
 			_player.set_physics_process(false)
 			_env.fog_enabled = false
 	if where != "":
 		_spawn = _player.position
+		_safe = _spawn
 
 
 # --- UI ----------------------------------------------------------------------
@@ -156,6 +180,8 @@ func _process(delta: float) -> void:
 	var t := _player.target()
 	_controls.can_interact = t != null
 	_hud.set_prompt(str(t.get("prompt")) if t else "")
-	if _player.position.y < -4.0:
-		_player.position = _spawn
+	if _player.is_on_floor() and _player.position.y > 0.3:
+		_safe = _player.position
+	if _player.position.y < -1.5:                    # fell off the rocks into the sea: back to the last dry spot
+		_player.position = _safe
 		_player.velocity = Vector3.ZERO

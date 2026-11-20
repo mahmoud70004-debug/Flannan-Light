@@ -1,6 +1,6 @@
 # Flannan Light — Game Design Document
 
-**Version:** 0.5 · **Updated:** 2026-11-19 · [Features](#feature-index) · [Decisions](#decisions) · [Change log](#change-log)
+**Version:** 0.6 · **Updated:** 2026-11-19 · [Features](#feature-index) · [Decisions](#decisions) · [Change log](#change-log)
 
 ## Summary
 You are a new lighthouse keeper in the early 1900s, alone on a remote island in an archipelago run by a government superintendent, Martin. Martin teaches you the daily routine on day 1, sails away, and visits every few days. You clean the tower, check the lamp, keep the store, watch ships and signal the far lighthouses. The routine is calm and repetitive on purpose; then it starts to break. The game is psychological horror through exploration only: no monsters, no combat. It ends when Martin, your only link to the world, starts to behave wrongly and you learn what the routine has been hiding.
@@ -41,7 +41,8 @@ wake → Martin's/log instructions → do daily tasks (clean, check lamp, store,
 | Anomaly escalation | designed | MVP | Data-driven anomalies, tiers 0–4, plus Martin's visit scripts | [design](features/anomaly-escalation/design.md) |
 | Mobile controls | implemented | MVP | Floating left stick, right-side drag look tracked per finger (web touch relative is unreliable), Interact button | — |
 | 1-bit renderer | idea | MVP | Low-res SubViewport, nearest filter, ordered-dither B/W shader | — |
-| Island | in progress | MVP | Small night island: flat-shaded terrain from a height function, landing ramp and jetty, store hut, placeholder tower with sweeping beam | — |
+| Island | in progress | MVP | Island modelled in Blender from the outline of a real island: cliffs, sea stacks, surf, a gentle path (about 4 degrees) from the quay to the lighthouse gate | — |
+| Lighthouse | in progress | MVP | 17.8 m tower, keepers' building, compound wall (Blender). Hall, stair door, stairs down, store door, underground store (game-built) | — |
 | Doors | in progress | MVP | Hinged door with eased open/close; aim at the leaf or the opening to toggle | — |
 | Menus and settings | idea | MVP | Title, new/continue, settings (sensitivity, brightness, dither, volume), pause | — |
 | Save and continue | idea | MVP | Autosave at sleep, one slot, stored in `user://` | — |
@@ -88,6 +89,9 @@ wake → Martin's/log instructions → do daily tasks (clean, check lamp, store,
 | D-010 | 2026-11-20 | Dither default 0.5 with a selectable grain size; texture pixel noise reduced | keep full dither | User: too many dither dots, but never smooth. Hard bands plus crisp edges instead of heavy noise | Visual filters |
 | D-011 | 2026-11-20 | Day 1 starts in overcast daylight, at the end of the jetty; dusk and night are later presets (`Atmosphere`) | start at night | User: the game must not begin at night. Daylight also sells the 1900 feel and makes the later nights land harder | Atmosphere, [anomaly-escalation](features/anomaly-escalation/design.md) |
 | D-012 | 2026-11-20 | Default look is ASH; SILVER (cool grey between ASH and COLD) added; COLD kept | REFERENCE default | User picked ASH then COLD for the 1900 feel | Visual filters |
+| D-013 | 2026-11-20 | Island and lighthouse are authored in Blender by script and exported as glTF; generated assets are committed | procedural-only terrain in GDScript | User asked for Blender-quality shapes; a real island outline (user's reference) gives a believable form; CI stays Blender-free | Island, Lighthouse |
+| D-014 | 2026-11-20 | Lighthouse is 17.8 m (was 28 m placeholder). The store is underground, reached from the hall by a stair door, stairs and a store door | store in a separate hut | User: shorter tower, internal lower door to an underground store | Lighthouse, [daily-routine](features/daily-routine/design.md) |
+| D-015 | 2026-11-20 | Default render height 360 (options 240-540); sun shadows on by default (SHADOW button cycles) | 240 | User agreed to raise resolution; their phone ran 65 fps at 360 in build 4 | Settings |
 | D-005 | 2026-11-19 | 3D renders in a low-res SubViewport, UI in the native-res window | one low-res window for all | Crisp UI at no extra GPU cost, pixel look for the world | 1-bit renderer |
 
 ## Open questions
@@ -102,6 +106,7 @@ wake → Martin's/log instructions → do daily tasks (clean, check lamp, store,
 
 ## Change log
 **0.1 (2026-11-19):** first draft; three core features designed; D-001 to D-005 logged.
+**0.6 (2026-11-20):** Blender island and lighthouse, underground store, 360p default; D-013 to D-015.
 **0.5 (2026-11-20):** daylight start, time-of-day presets, whitewashed tower, faceted rocks, ASH default; D-011, D-012.
 **0.4 (2026-11-20):** island, door animation, lighting layers; D-009, D-010.
 **0.3 (2026-11-20):** look-dev phase added (store room, edge/contrast/vignette pass, merged geometry); touch look fixed.

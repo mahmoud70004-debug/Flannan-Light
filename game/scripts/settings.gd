@@ -4,7 +4,7 @@ extends Node
 signal changed
 
 const PATH := "user://settings.cfg"
-const RENDER_HEIGHTS := [180, 240, 360, 480]
+const RENDER_HEIGHTS := [240, 360, 480, 540]
 const VERSION := 3                 ## stored with the file
 const LOOK_VERSION := 2            ## brightness/contrast/dither saved before this are discarded
 const PALETTE_VERSION := 3         ## palette order changed in v3, so older indexes are discarded
@@ -15,7 +15,7 @@ var brightness: float = 1.15
 var dither_amount: float = 0.5
 var contrast: float = 1.25
 var dither_cell: int = 1          ## size of one dither cell in low-res pixels (1 fine, 2 chunky)
-var render_height: int = 240           ## height of the low-res 3D image
+var render_height: int = 360           ## height of the low-res 3D image
 var show_debug: bool = true
 var shadows: int = 1              ## 0 off, 1 window light only, 2 window + lantern
 
@@ -37,7 +37,7 @@ func _ready() -> void:
 		contrast = clampf(cfg.get_value("video", "contrast", contrast), 0.8, 2.0)
 	render_height = cfg.get_value("video", "render_height", render_height)
 	if not RENDER_HEIGHTS.has(render_height):
-		render_height = 240
+		render_height = 360
 	show_debug = cfg.get_value("debug", "show_debug", show_debug)
 	shadows = clampi(int(cfg.get_value("video", "shadows", shadows)), 0, 2)
 
