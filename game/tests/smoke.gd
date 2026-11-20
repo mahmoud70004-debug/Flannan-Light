@@ -43,8 +43,9 @@ func _run() -> void:
 
 	# Time-of-day presets are complete
 	var needed := ["sky", "sky_top", "sky_horizon", "fog", "fog_density", "fog_sky", "ambient", "light_dir", "light_energy", "vignette", "night", "beam", "porch", "sea_base", "sea_glint"]
-	for tod in Atmosphere.NAMES:
-		var preset: Dictionary = Atmosphere.PRESETS[tod]
+	var atmosphere = load("res://scripts/atmosphere.gd")   # runtime load: it refers to StoreRoom, which needs the Settings autoload
+	for tod in atmosphere.NAMES:
+		var preset: Dictionary = atmosphere.PRESETS[tod]
 		var missing := needed.filter(func(k: String) -> bool: return not preset.has(k))
 		_check(missing.is_empty(), "time preset '%s' has every key %s" % [tod, missing])
 
