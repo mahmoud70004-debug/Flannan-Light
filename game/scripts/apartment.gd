@@ -481,7 +481,7 @@ func debug_spots() -> Dictionary:
 		"mid": [Vector3(0.0, 0.05, -5.0), 0.0],
 		"end": [Vector3(0.0, 0.05, -9.8), PI],
 		"living": [Vector3(1.2, 0.05, -2.9), -0.4],
-		"kitchen": [Vector3(1.6, 0.05, -3.3), PI + 0.16],
+		"kitchen": [Vector3(1.7, 0.05, -2.85), PI + 0.1],
 		"bedroom": [Vector3(-1.1, 0.05, -3.3), 0.48],
 		"bath": [Vector3(-1.2, 0.05, -0.3), 0.71],
 		"storage": [Vector3(-1.2, 0.05, -7.0), 0.48],
