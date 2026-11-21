@@ -63,6 +63,8 @@ func _apply_settings() -> void:
 	_post_mat.set_shader_parameter("dither_cell", Settings.dither_cell)
 	_post_mat.set_shader_parameter("contrast", Settings.contrast)
 	_post_mat.set_shader_parameter("vignette", _vignette)
+	_post_mat.set_shader_parameter("mode", Settings.look_mode)
+	_post_mat.set_shader_parameter("edge_strength", 0.10 if Settings.look_mode == 1 else 0.8)
 	if _lighthouse:
 		_lighthouse.apply_shadows(Settings.shadows)
 	if _sun:
@@ -72,7 +74,7 @@ func _apply_settings() -> void:
 		_sun.shadow_bias = 0.08
 		_sun.shadow_normal_bias = 1.2
 	if _hud:
-		_hud.set_info("%s · %s · %dp · shadows %s · %s" % [Palettes.preset_name(Settings.palette), _time, h, ["off", "sun+window", "sun+window+lantern"][Settings.shadows], BuildInfo.label()])
+		_hud.set_info("%s %s · %s · %dp · shadows %s · %s" % [["CRUNCH", "PHOTO"][Settings.look_mode], Palettes.preset_name(Settings.palette), _time, h, ["off", "sun+window", "sun+window+lantern"][Settings.shadows], BuildInfo.label()])
 
 
 # --- 3D world ---------------------------------------------------------------
@@ -167,6 +169,7 @@ func _build_ui() -> void:
 	_controls.filter_pressed.connect(Settings.cycle_palette)
 	_controls.resolution_pressed.connect(Settings.cycle_render_height)
 	_controls.shadows_pressed.connect(Settings.cycle_shadows)
+	_controls.style_pressed.connect(Settings.toggle_look_mode)
 
 
 func _on_interact() -> void:

@@ -13,16 +13,22 @@ func _ready() -> void:
 	bg.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	add_child(bg)
 
+	# The menu scrolls, so adding options never pushes the last ones off a short screen.
+	var scroll := ScrollContainer.new()
+	scroll.anchor_left = 0.5
+	scroll.anchor_right = 0.5
+	scroll.anchor_top = 0.0
+	scroll.anchor_bottom = 1.0
+	scroll.offset_left = -380
+	scroll.offset_right = 380
+	scroll.offset_top = 8
+	scroll.offset_bottom = -8
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	add_child(scroll)
 	var box := VBoxContainer.new()
-	box.set_anchors_and_offsets_preset(Control.PRESET_CENTER)
-	box.custom_minimum_size = Vector2(760, 0)
-	box.offset_left = -380
-	box.offset_right = 380
-	box.offset_top = -320
-	box.offset_bottom = 320
-	box.alignment = BoxContainer.ALIGNMENT_CENTER
+	box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	box.add_theme_constant_override("separation", 8)
-	add_child(box)
+	scroll.add_child(box)
 
 	box.add_child(_label("FLANNAN LIGHT", 58, HORIZONTAL_ALIGNMENT_CENTER))
 	box.add_child(_label("Pottsfield Studio", 22, HORIZONTAL_ALIGNMENT_CENTER, 0.55))
@@ -52,6 +58,13 @@ func _ready() -> void:
 
 	box.add_child(_slider("Brightness", 0.5, 2.5, Settings.brightness, func(v: float) -> void: Settings.brightness = v))
 	box.add_child(_slider("Contrast", 0.8, 2.0, Settings.contrast, func(v: float) -> void: Settings.contrast = v))
+	var style := _button("Style: %s" % ["CRUNCH (dither)", "PHOTO (film)"][Settings.look_mode])
+	style.custom_minimum_size = Vector2(0, 56)
+	style.add_theme_font_size_override("font_size", 26)
+	style.pressed.connect(func() -> void:
+		Settings.toggle_look_mode()
+		style.text = "Style: %s" % ["CRUNCH (dither)", "PHOTO (film)"][Settings.look_mode])
+	box.add_child(style)
 	box.add_child(_cell_toggle())
 	box.add_child(_slider("Dither", 0.0, 1.0, Settings.dither_amount, func(v: float) -> void: Settings.dither_amount = v))
 	box.add_child(_slider("Look sensitivity", 0.001, 0.012, Settings.look_sensitivity, func(v: float) -> void: Settings.look_sensitivity = v))

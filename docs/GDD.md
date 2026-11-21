@@ -1,6 +1,6 @@
 # Flannan Light — Game Design Document
 
-**Version:** 0.6 · **Updated:** 2026-11-19 · [Features](#feature-index) · [Decisions](#decisions) · [Change log](#change-log)
+**Version:** 0.7 · **Updated:** 2026-11-19 · [Features](#feature-index) · [Decisions](#decisions) · [Change log](#change-log)
 
 ## Summary
 You are a new lighthouse keeper in the early 1900s, alone on a remote island in an archipelago run by a government superintendent, Martin. Martin teaches you the daily routine on day 1, sails away, and visits every few days. You clean the tower, check the lamp, keep the store, watch ships and signal the far lighthouses. The routine is calm and repetitive on purpose; then it starts to break. The game is psychological horror through exploration only: no monsters, no combat. It ends when Martin, your only link to the world, starts to behave wrongly and you learn what the routine has been hiding.
@@ -49,6 +49,7 @@ wake → Martin's/log instructions → do daily tasks (clean, check lamp, store,
 | Martin dialogue | idea | MVP | Text-only dialogue with scripted variants per visit | — |
 | Audio | idea | MVP | Fixed soundscape: silence, waves, storm, gulls; indoor low-pass; no music or stingers | — |
 | Glimpse events | idea | MVP | A grinning face seen for ~2 s in dim light during a task, then lights cut and return and it is gone; never attacks | — |
+| Visual style (PHOTO / CRUNCH) | in progress | MVP | Two post looks to choose between: CRUNCH (dithered palette) and PHOTO (24 tones, film grain, halation, soft edges); STYLE button toggles live | — |
 | Visual filters | idea | MVP | Selectable looks in Settings: pure 1-bit, 4-tone ash, warm dither, cold tide, reference palette | — |
 | Endings | idea | later | Three endings chosen by routine fidelity and final choice | — |
 
@@ -106,6 +107,7 @@ wake → Martin's/log instructions → do daily tasks (clean, check lamp, store,
 
 ## Change log
 **0.1 (2026-11-19):** first draft; three core features designed; D-001 to D-005 logged.
+**0.7 (2026-11-21):** PHOTO vs CRUNCH look switch for the art-direction decision; scrollable title menu.
 **0.6 (2026-11-20):** Blender island and lighthouse, underground store, 360p default; D-013 to D-015.
 **0.5 (2026-11-20):** daylight start, time-of-day presets, whitewashed tower, faceted rocks, ASH default; D-011, D-012.
 **0.4 (2026-11-20):** island, door animation, lighting layers; D-009, D-010.

@@ -11,6 +11,7 @@ const PALETTE_VERSION := 3         ## palette order changed in v3, so older inde
 
 var look_sensitivity: float = 0.0045   ## radians per UI pixel dragged
 var palette: int = 0
+var look_mode: int = 1             ## 0 = crunch (dithered palette), 1 = photo (many tones, grain, halation)
 var brightness: float = 1.15
 var dither_amount: float = 0.5
 var contrast: float = 1.25
@@ -26,6 +27,7 @@ func _ready() -> void:
 		return
 	var version: int = cfg.get_value("meta", "version", 1)
 	look_sensitivity = clampf(cfg.get_value("input", "look_sensitivity", look_sensitivity), 0.001, 0.012)
+	look_mode = clampi(int(cfg.get_value("video", "look_mode", look_mode)), 0, 1)
 	if version >= PALETTE_VERSION:
 		palette = clampi(cfg.get_value("video", "palette", palette), 0, Palettes.count() - 1)
 	if version >= LOOK_VERSION:
@@ -47,6 +49,7 @@ func save() -> void:
 	cfg.set_value("meta", "version", VERSION)
 	cfg.set_value("input", "look_sensitivity", look_sensitivity)
 	cfg.set_value("video", "palette", palette)
+	cfg.set_value("video", "look_mode", look_mode)
 	cfg.set_value("video", "brightness", brightness)
 	cfg.set_value("video", "dither_amount", dither_amount)
 	cfg.set_value("video", "dither_cell", dither_cell)
@@ -71,4 +74,9 @@ func cycle_render_height() -> void:
 
 func cycle_shadows() -> void:
 	shadows = (shadows + 1) % 3
+	save()
+
+
+func toggle_look_mode() -> void:
+	look_mode = 1 - look_mode
 	save()

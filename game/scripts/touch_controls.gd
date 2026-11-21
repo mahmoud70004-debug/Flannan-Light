@@ -10,6 +10,7 @@ signal menu_pressed
 signal filter_pressed
 signal resolution_pressed
 signal shadows_pressed
+signal style_pressed
 
 const STICK_RADIUS := 110.0
 const KNOB_RADIUS := 46.0
@@ -25,7 +26,7 @@ var _look_index := -1
 var _ui_index := -1
 var _stick_base := Vector2.ZERO
 var _stick_knob := Vector2.ZERO
-var _labels := ["MENU", "FILTER", "RES", "SHADOW"]
+var _labels := ["MENU", "FILTER", "RES", "SHADOW", "STYLE"]
 var _last_pos := {}                ## finger index -> last absolute position (see _drag)
 var _use_mouse := false
 
@@ -78,7 +79,7 @@ func _press(index: int, pos: Vector2) -> void:
 		_ui_index = index
 		interact_pressed.emit()
 		return
-	for i in 4:
+	for i in 5:
 		if _top_button_rect(i).has_point(pos):
 			_ui_index = index
 			match i:
@@ -86,6 +87,7 @@ func _press(index: int, pos: Vector2) -> void:
 				1: filter_pressed.emit()
 				2: resolution_pressed.emit()
 				3: shadows_pressed.emit()
+				4: style_pressed.emit()
 			return
 	if pos.x < size.x * LEFT_ZONE:
 		if _stick_index == -1:
@@ -154,7 +156,7 @@ func _draw() -> void:
 	var font := ThemeDB.fallback_font
 	draw_string(font, c + Vector2(-60, 12), "USE", HORIZONTAL_ALIGNMENT_CENTER, 120, 34, active)
 
-	for i in 4:
+	for i in 5:
 		var r := _top_button_rect(i)
 		draw_rect(r, Color(0, 0, 0, 0.45))
 		draw_rect(r, line, false, 2.0)
