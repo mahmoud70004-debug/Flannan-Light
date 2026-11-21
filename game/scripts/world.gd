@@ -1,25 +1,23 @@
 extends Node
-## Phase 0 test island: a grey-box yard with a lighthouse beam, one switch,
-## and the full render pipeline (low-res 3D -> dither shader -> screen).
+## The game world: Martin's flat, the first-person player, and the render pipeline
+## (3D at a chosen height -> film shader -> screen). Debug aids for look-dev and
+## tests: add ?spawn=<spot>&res=<height>&grade=<n>&shadows=<n> to the web URL, or pass
+## `-- --spawn=<spot> --res=<height>` to the Godot command line.
 
-const SHADER := preload("res://shaders/dither_palette.gdshader")
+const SHADER := preload("res://shaders/film_post.gdshader")
 
 var _view: SubViewport
 var _post_mat: ShaderMaterial
 var _player: Player
 var _controls: TouchControls
 var _hud: Hud
-var _lighthouse: Lighthouse
-var _safe := Vector3.ZERO
-var _island: Island
+var _apartment: Apartment
 var _env: Environment
-var _sun: DirectionalLight3D
-var _time := "day"
-var _vignette := 0.3
-var _spawn := Vector3.ZERO
+var _overrides := {}
 
 
 func _ready() -> void:
+	_read_overrides()
 	_build_view()
 	_build_world()
 	_build_ui()
@@ -28,11 +26,27 @@ func _ready() -> void:
 	Settings.changed.connect(_apply_settings)
 
 
+## Debug arguments from the URL (web) or command line (desktop).
+func _read_overrides() -> void:
+	if OS.has_feature("web"):
+		for key in ["spawn", "res", "grade", "shadows", "msaa"]:
+			var v := str(JavaScriptBridge.eval("new URLSearchParams(location.search).get('%s') || ''" % key))
+			if v != "":
+				_overrides[key] = v
+	for a in OS.get_cmdline_user_args():
+		var kv := (a as String).trim_prefix("--").split("=")
+		if kv.size() == 2:
+			_overrides[kv[0]] = kv[1]
+
+
+func _opt(key: String, stored: int) -> int:
+	return int(_overrides[key]) if _overrides.has(key) else stored
+
+
 # --- render pipeline --------------------------------------------------------
 
 func _build_view() -> void:
 	_view = SubViewport.new()
-	_view.msaa_3d = Viewport.MSAA_DISABLED
 	_view.screen_space_aa = Viewport.SCREEN_SPACE_AA_DISABLED
 	_view.render_target_update_mode = SubViewport.UPDATE_ALWAYS
 	add_child(_view)
@@ -45,7 +59,7 @@ func _build_view() -> void:
 	rect.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	rect.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	rect.stretch_mode = TextureRect.STRETCH_SCALE
-	rect.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	rect.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
 	rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_post_mat = ShaderMaterial.new()
 	_post_mat.shader = SHADER
@@ -55,102 +69,50 @@ func _build_view() -> void:
 
 func _apply_settings() -> void:
 	var vr := get_viewport().get_visible_rect().size
-	var h: int = Settings.render_height
+	var h := _opt("res", Settings.render_height)
 	_view.size = Vector2i(maxi(int(round(h * vr.x / maxf(vr.y, 1.0))), 16), h)
-	Palettes.apply(_post_mat, Settings.palette)
-	_post_mat.set_shader_parameter("brightness", Settings.brightness)
-	_post_mat.set_shader_parameter("dither_amount", Settings.dither_amount)
-	_post_mat.set_shader_parameter("dither_cell", Settings.dither_cell)
-	_post_mat.set_shader_parameter("contrast", Settings.contrast)
-	_post_mat.set_shader_parameter("vignette", _vignette)
-	_post_mat.set_shader_parameter("mode", Settings.look_mode)
-	_post_mat.set_shader_parameter("edge_strength", 0.10 if Settings.look_mode == 1 else 0.8)
-	if _lighthouse:
-		_lighthouse.apply_shadows(Settings.shadows)
-	if _sun:
-		_sun.shadow_enabled = Settings.shadows >= 1
-		_sun.directional_shadow_mode = DirectionalLight3D.SHADOW_ORTHOGONAL
-		_sun.directional_shadow_max_distance = 80.0
-		_sun.shadow_bias = 0.08
-		_sun.shadow_normal_bias = 1.2
+	var aa := _opt("msaa", Settings.msaa)
+	_view.msaa_3d = [Viewport.MSAA_DISABLED, Viewport.MSAA_2X, Viewport.MSAA_4X][aa]
+	var grade := _opt("grade", Settings.grade)
+	Film.apply(_post_mat, grade, Settings.brightness)
+	var shadows := _opt("shadows", Settings.shadows)
+	if _apartment:
+		_apartment.apply_shadows(shadows)
 	if _hud:
-		_hud.set_info("%s %s · %s · %dp · shadows %s · %s" % [["CRUNCH", "PHOTO"][Settings.look_mode], Palettes.preset_name(Settings.palette), _time, h, ["off", "sun+window", "sun+window+lantern"][Settings.shadows], BuildInfo.label()])
+		_hud.set_info("%s · %dp · MSAA %s · shadows %s · %s" % [Film.grade_name(grade), h, ["off", "2x", "4x"][aa], ["off", "corridor", "all"][shadows], BuildInfo.label()])
 
 
 # --- 3D world ---------------------------------------------------------------
 
 func _build_world() -> void:
 	_env = Environment.new()
+	_env.background_mode = Environment.BG_COLOR
+	_env.background_color = Color.BLACK
+	_env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
+	_env.ambient_light_color = Color(0.20, 0.21, 0.24)
+	_env.ambient_light_energy = 0.9
+	_env.tonemap_mode = Environment.TONE_MAPPER_FILMIC
+	_env.tonemap_exposure = 1.0
+	_env.fog_enabled = true
+	_env.fog_light_color = Color(0.07, 0.075, 0.085)
+	_env.fog_density = 0.035
 	var world_env := WorldEnvironment.new()
 	world_env.environment = _env
 	_view.add_child(world_env)
 
-	_island = Island.new()
-	_view.add_child(_island)
-
-	# Sun / moon lights the outdoors (visual layer 1) only; the store room has its own lights.
-	_sun = DirectionalLight3D.new()
-	_sun.light_cull_mask = 1
-	_view.add_child(_sun)
-
-	_lighthouse = Lighthouse.new()
-	_lighthouse.position = _island.lighthouse_position()
-	_view.add_child(_lighthouse)
-
-	_time = "day"
-	if OS.has_feature("web"):
-		var t := str(JavaScriptBridge.eval("new URLSearchParams(location.search).get('time') || ''"))
-		if Atmosphere.NAMES.has(t):
-			_time = t
-	_vignette = Atmosphere.apply(_time, _env, _sun, _island, _lighthouse)
+	_apartment = Apartment.new()
+	_view.add_child(_apartment)
+	_apartment.said.connect(func(t: String) -> void: _hud.say(t))
 
 	_player = Player.new()
-	_spawn = _island.spawn_point()
 	_view.add_child(_player)
-	_player.position = _spawn
-	_player.rotation.y = _island.spawn_yaw()        # facing the island
-	_safe = _spawn
-	_debug_spawn()
-
-
-## Web debug aid: add ?spawn=gate|door|inside|stairs|store|far|sky to the URL.
-func _debug_spawn() -> void:
-	if not OS.has_feature("web"):
-		return
-	var where := str(JavaScriptBridge.eval("new URLSearchParams(location.search).get('spawn') || ''"))
-	var lh := _lighthouse.position
-	match where:
-		"gate":
-			var gp := _island.path_points()
-			_player.position = gp[gp.size() - 1] + Vector3(0, 0.2, 3.5)
-			var gd: Vector3 = lh - _player.position
-			_player.rotation.y = atan2(-gd.x, -gd.z)
-		"door":
-			_player.position = lh + Vector3(0, 0.1, 11.2)
-			_player.rotation.y = 0.0
-		"inside":
-			_player.position = lh + Vector3(1.0, 0.2, 7.7)
-			_player.rotation.y = 0.0
-		"stairs":
-			_player.position = lh + Vector3(-4.1, 0.2, 4.0)
-			_player.rotation.y = PI
-		"store":
-			_player.position = lh + Vector3(-4.1, Lighthouse.STORE_FLOOR_Y + 0.1, 10.6)
-			_player.rotation.y = PI
-		"far":
-			var pts := _island.path_points()
-			_player.position = pts[maxi(pts.size() - 6, 0)] + Vector3(0, 0.1, 0)
-			var d := lh - _player.position
-			_player.rotation.y = atan2(-d.x, -d.z)
-		"sky":
-			_player.position = lh + Vector3(40.0, 70.0, 80.0)
-			_player.rotation.y = 0.5
-			_player.look_by(Vector2(0, 700.0), 0.001)
-			_player.set_physics_process(false)
-			_env.fog_enabled = false
-	if where != "":
-		_spawn = _player.position
-		_safe = _spawn
+	_player.position = _apartment.spawn_point()
+	_player.rotation.y = _apartment.spawn_yaw()
+	var spot := str(_overrides.get("spawn", ""))
+	var spots := _apartment.debug_spots()
+	if spots.has(spot):
+		_player.position = spots[spot][0]
+		_player.rotation.y = spots[spot][1]
 
 
 # --- UI ----------------------------------------------------------------------
@@ -166,10 +128,10 @@ func _build_ui() -> void:
 	_controls.look.connect(func(rel: Vector2) -> void: _player.look_by(rel, Settings.look_sensitivity))
 	_controls.interact_pressed.connect(_on_interact)
 	_controls.menu_pressed.connect(func() -> void: get_tree().change_scene_to_file("res://scenes/title.tscn"))
-	_controls.filter_pressed.connect(Settings.cycle_palette)
+	_controls.grade_pressed.connect(Settings.cycle_grade)
 	_controls.resolution_pressed.connect(Settings.cycle_render_height)
 	_controls.shadows_pressed.connect(Settings.cycle_shadows)
-	_controls.style_pressed.connect(Settings.toggle_look_mode)
+	_controls.aa_pressed.connect(Settings.cycle_msaa)
 
 
 func _on_interact() -> void:
@@ -178,13 +140,8 @@ func _on_interact() -> void:
 		t.call("interact")
 
 
-func _process(delta: float) -> void:
+func _process(_delta: float) -> void:
 	_player.move_input = _controls.move_vector
 	var t := _player.target()
 	_controls.can_interact = t != null
 	_hud.set_prompt(str(t.get("prompt")) if t else "")
-	if _player.is_on_floor() and _player.position.y > 0.3:
-		_safe = _player.position
-	if _player.position.y < -1.5:                    # fell off the rocks into the sea: back to the last dry spot
-		_player.position = _safe
-		_player.velocity = Vector3.ZERO

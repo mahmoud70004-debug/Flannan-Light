@@ -1,123 +1,121 @@
 class_name RoomKit
 extends Node3D
-## Shared building blocks for the game's interiors: merged static visuals (one draw
-## call per material and layer), solid slabs with collision, interactables and doors.
-## Interior visuals live on layer 2 (lit by the room's own lights); the outdoors lives
-## on layer 1 (lit by sun or moon). Layers keep daylight out of the rooms.
+## Building blocks for interiors. Static boxes are merged into one mesh per material and
+## visual layer (one draw call each). Each face of a box can carry its own material and
+## layer, so the two sides of a wall belong to the two rooms they face. Per-room layers
+## let each room's lights ignore the rooms next door (no light leaking through walls
+## without paying for shadows).
 
-var _stone: StandardMaterial3D
-var _wood: StandardMaterial3D
-var _dark_wood: StandardMaterial3D
-var _sack: StandardMaterial3D
-var _iron: StandardMaterial3D
-var _plaster: StandardMaterial3D
-var _batches := {}                ## [Material, layer] -> SurfaceTool
+var _batches := {}                ## "key|layer" -> SurfaceTool
+var _body: StaticBody3D
 
-
-func _init_materials() -> void:
-	_stone = Tex.material(Tex.bricks(), 1.0)
-	_wood = Tex.material(Tex.planks(), 1.0)
-	_dark_wood = Tex.material(Tex.planks(), 1.0, 0.55)
-	_sack = Tex.material(Tex.burlap(), 0.5)
-	_iron = Tex.material(Tex.rough(), 1.0, 0.8)
-	_plaster = Tex.material(Tex.plaster(), 2.0, 0.85)
+const FACE_AXES := {
+	"px": [Vector3.RIGHT, Vector3.BACK, Vector3.UP],
+	"nx": [Vector3.LEFT, Vector3.BACK, Vector3.UP],
+	"py": [Vector3.UP, Vector3.RIGHT, Vector3.BACK],
+	"ny": [Vector3.DOWN, Vector3.RIGHT, Vector3.BACK],
+	"pz": [Vector3.BACK, Vector3.RIGHT, Vector3.UP],
+	"nz": [Vector3.FORWARD, Vector3.RIGHT, Vector3.UP],
+}
 
 
-func _batch(mesh: Mesh, xform: Transform3D, mat: Material, layer := 2) -> void:
-	var key := [mat, layer]
-	if not _batches.has(key):
+func _ready_kit() -> void:
+	_body = StaticBody3D.new()
+	_body.collision_layer = 1
+	add_child(_body)
+
+
+func _surface(mat_key: String, layer: int) -> SurfaceTool:
+	var k := "%s|%d" % [mat_key, layer]
+	if not _batches.has(k):
 		var st := SurfaceTool.new()
 		st.begin(Mesh.PRIMITIVE_TRIANGLES)
-		_batches[key] = st
-	(_batches[key] as SurfaceTool).append_from(mesh, 0, xform)
+		_batches[k] = st
+	return _batches[k]
 
 
-func _flush_batches() -> void:
-	for key in _batches:
-		var st: SurfaceTool = _batches[key]
+## Adds one box. `faces` maps "px","nx","py","ny","pz","nz" to [material key, layer];
+## faces not listed use `base`. Axis-aligned boxes get world-space UVs so a texture
+## runs on unbroken across neighbouring boxes. `yaw` rotates props around Y.
+func box(center: Vector3, size: Vector3, base: Array, faces := {}, collide := true, yaw := 0.0) -> void:
+	var basis := Basis(Vector3.UP, yaw)
+	var half := size * 0.5
+	for f in FACE_AXES:
+		var spec: Array = faces.get(f, base)
+		if spec.is_empty():
+			continue
+		var ax: Array = FACE_AXES[f]
+		var n: Vector3 = ax[0]
+		var a: Vector3 = ax[1]
+		var b: Vector3 = ax[2]
+		var cf := n * (half * n.abs()).length()           # local face centre offset
+		var ha := (half * a.abs()).length()
+		var hb := (half * b.abs()).length()
+		var corners: Array[Vector3] = [
+			cf - a * ha - b * hb, cf + a * ha - b * hb, cf + a * ha + b * hb, cf - a * ha + b * hb]
+		var tile := Mats.tile_of(spec[0]) if (Mats.TABLE[spec[0]] as Dictionary).get("tex", "") != "" else 1.0
+		var st := _surface(spec[0], spec[1])
+		var wn := basis * n
+		var pts: Array[Vector3] = []
+		var uvs: Array[Vector2] = []
+		for c in corners:
+			var world := basis * c + center
+			pts.append(world)
+			var uv_src := (c + center) if yaw == 0.0 else (c + half)
+			uvs.append(Vector2(uv_src.dot(a), -uv_src.dot(b)) / tile)
+		# Godot treats clockwise triangles (seen from outside) as front faces.
+		var order := [0, 1, 2, 0, 2, 3]
+		if (pts[1] - pts[0]).cross(pts[2] - pts[0]).dot(wn) > 0.0:
+			order = [0, 2, 1, 0, 3, 2]
+		for i in order:
+			st.set_normal(wn)
+			st.set_uv(uvs[i])
+			st.add_vertex(pts[i])
+	if collide:
+		var shape := CollisionShape3D.new()
+		var bs := BoxShape3D.new()
+		bs.size = size
+		shape.shape = bs
+		shape.transform = Transform3D(basis, center)
+		_body.add_child(shape)
+
+
+func flush() -> void:
+	for k in _batches:
+		var st: SurfaceTool = _batches[k]
 		st.generate_tangents()
+		var parts: PackedStringArray = (k as String).split("|")
 		var mi := MeshInstance3D.new()
 		mi.mesh = st.commit()
-		mi.material_override = key[0]
-		mi.layers = key[1]
+		mi.material_override = Mats.get_mat(parts[0])
+		mi.layers = int(parts[1])
 		add_child(mi)
 	_batches.clear()
 
 
-func _solid(size: Vector3, pos: Vector3, mat: Material, basis := Basis()) -> StaticBody3D:
-	var body := StaticBody3D.new()
-	body.transform = Transform3D(basis, pos)
-	var box := BoxMesh.new()
-	box.size = size
-	_batch(box, Transform3D(basis, pos), mat)
-	var shape := CollisionShape3D.new()
-	var bs := BoxShape3D.new()
-	bs.size = size
-	shape.shape = bs
-	body.add_child(shape)
-	add_child(body)
-	return body
-
-
-func _prop_box(size: Vector3, pos: Vector3, mat: Material) -> void:
-	var box := BoxMesh.new()
-	box.size = size
-	_batch(box, Transform3D(Basis(), pos), mat)
-
-
-func _interactable(label: String, size: Vector3, pos: Vector3) -> Interactable:
-	var body := Interactable.new()
-	body.prompt = label
-	body.collision_layer = 2
-	var shape := CollisionShape3D.new()
-	var bs := BoxShape3D.new()
-	bs.size = size
-	shape.shape = bs
-	body.add_child(shape)
-	body.position = pos
-	add_child(body)
-	return body
-
-
-## A hinged door with an interaction catch in its opening. `hinge` is the bottom of the
-## hinge edge; the leaf swings toward -Z (into the room) when opened.
-func make_door(width: float, height: float, hinge: Vector3, parent: Node3D = null) -> Door:
-	if parent == null:
-		parent = self
-	var d := Door.new()
-	d.collision_layer = 1 | 2
-	d.position = hinge + Vector3(0, height / 2, 0)
-	var shape := CollisionShape3D.new()
-	var bs := BoxShape3D.new()
-	bs.size = Vector3(width - 0.04, height - 0.04, 0.12)
-	shape.shape = bs
-	shape.position = Vector3(width / 2, 0, 0)
-	d.add_child(shape)
-
-	var parts: Array = [[Vector3(width - 0.04, height - 0.04, 0.12), Vector3(width / 2, 0, 0), _dark_wood]]
-	for y in [-0.3 * height, 0.3 * height]:                       # iron straps
-		parts.append([Vector3(width - 0.1, 0.1, 0.15), Vector3(width / 2, y, 0), _iron])
-	parts.append([Vector3(0.05, 0.18, 0.2), Vector3(width - 0.15, 0, 0), _iron])   # handle
-	for p in parts:
-		var mi := MeshInstance3D.new()
-		var box := BoxMesh.new()
-		box.size = p[0]
-		mi.mesh = box
-		mi.material_override = p[2]
-		mi.layers = 1 | 2                  # lit from both sides of the doorway
-		mi.position = p[1]
-		d.add_child(mi)
-	parent.add_child(d)
-
-	var catch_body := DoorCatch.new()
-	catch_body.door = d
-	catch_body.collision_layer = 2          # interaction ray only; the player walks straight through
-	catch_body.collision_mask = 0
-	var cshape := CollisionShape3D.new()
-	var cbox := BoxShape3D.new()
-	cbox.size = Vector3(width - 0.1, height - 0.1, 0.4)
-	cshape.shape = cbox
-	catch_body.add_child(cshape)
-	catch_body.position = hinge + Vector3(width / 2, height / 2, 0)
-	parent.add_child(catch_body)
-	return d
+## Standalone box mesh with tile-scaled UVs, for things that move (door leaves).
+static func box_mesh(size: Vector3, mat_key: String) -> ArrayMesh:
+	var textured: bool = (Mats.TABLE[mat_key] as Dictionary).get("tex", "") != ""
+	var tile := Mats.tile_of(mat_key) if textured else 1.0
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var half := size * 0.5
+	for f in FACE_AXES:
+		var ax: Array = FACE_AXES[f]
+		var n: Vector3 = ax[0]
+		var a: Vector3 = ax[1]
+		var b: Vector3 = ax[2]
+		var cf := n * (half * n.abs()).length()
+		var ha := (half * a.abs()).length()
+		var hb := (half * b.abs()).length()
+		var pts: Array[Vector3] = [cf - a * ha - b * hb, cf + a * ha - b * hb, cf + a * ha + b * hb, cf - a * ha + b * hb]
+		var order := [0, 1, 2, 0, 2, 3]
+		if (pts[1] - pts[0]).cross(pts[2] - pts[0]).dot(n) > 0.0:
+			order = [0, 2, 1, 0, 3, 2]
+		for i in order:
+			var c := pts[i] + half
+			st.set_normal(n)
+			st.set_uv(Vector2(c.dot(a), -c.dot(b)) / tile)
+			st.add_vertex(pts[i])
+	st.generate_tangents()
+	return st.commit()

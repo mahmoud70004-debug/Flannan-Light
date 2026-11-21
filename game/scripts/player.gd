@@ -1,6 +1,6 @@
 class_name Player
 extends CharacterBody3D
-## First-person keeper. Input is pushed in from outside (touch controls),
+## First-person Martin. Input is pushed in from outside (touch controls),
 ## so the same body works with any control scheme.
 
 const WALK_SPEED := 2.2
@@ -35,7 +35,7 @@ func _ready() -> void:
 	camera = Camera3D.new()
 	camera.fov = 72.0
 	camera.near = 0.05
-	camera.far = 320.0
+	camera.far = 60.0
 	head.add_child(camera)
 
 	_ray = RayCast3D.new()

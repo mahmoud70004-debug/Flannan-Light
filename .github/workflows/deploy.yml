@@ -79,7 +79,7 @@ jobs:
           test -f "build/web/b${N}.wasm"
           test -f "build/web/b${N}.pck"
           # Files carry the build number so a phone never mixes an old .wasm with a new .pck.
-          printf '<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Flannan Light</title><meta http-equiv="refresh" content="0;url=b%s.html"><style>html{background:#000}</style></head><body><script>location.replace("b%s.html"+location.search)</script></body></html>\n' "$N" "$N" > build/web/index.html
+          printf '<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>No One Home</title><meta http-equiv="refresh" content="0;url=b%s.html"><style>html{background:#000}</style></head><body><script>location.replace("b%s.html"+location.search)</script></body></html>\n' "$N" "$N" > build/web/index.html
           ls -la build/web
 
       - uses: actions/upload-pages-artifact@v3

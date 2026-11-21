@@ -1,10 +1,11 @@
 extends Control
-## Title screen: Start, look selection, brightness, sensitivity, build label.
+## Title screen: Start, picture options, sensitivity, build label.
 ## The Start press is the user gesture the web build needs for audio,
 ## fullscreen and orientation lock.
 
-var _palette_label: Label
-var _swatches: HBoxContainer
+const GAME_TITLE := "NO ONE HOME"
+
+var _grade_label: Label
 
 
 func _ready() -> void:
@@ -30,7 +31,7 @@ func _ready() -> void:
 	box.add_theme_constant_override("separation", 8)
 	scroll.add_child(box)
 
-	box.add_child(_label("FLANNAN LIGHT", 58, HORIZONTAL_ALIGNMENT_CENTER))
+	box.add_child(_label(GAME_TITLE, 64, HORIZONTAL_ALIGNMENT_CENTER))
 	box.add_child(_label("Pottsfield Studio", 22, HORIZONTAL_ALIGNMENT_CENTER, 0.55))
 
 	var start := _button("START")
@@ -40,34 +41,26 @@ func _ready() -> void:
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 12)
 	var prev := _button("<", 90)
-	prev.pressed.connect(func() -> void: _step_palette(-1))
+	prev.pressed.connect(func() -> void: _step_grade(-1))
 	var next := _button(">", 90)
-	next.pressed.connect(func() -> void: _step_palette(1))
-	_palette_label = _label("", 34, HORIZONTAL_ALIGNMENT_CENTER)
-	_palette_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	_palette_label.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	next.pressed.connect(func() -> void: _step_grade(1))
+	_grade_label = _label("", 34, HORIZONTAL_ALIGNMENT_CENTER)
+	_grade_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_grade_label.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	row.add_child(prev)
-	row.add_child(_palette_label)
+	row.add_child(_grade_label)
 	row.add_child(next)
 	box.add_child(row)
 
-	_swatches = HBoxContainer.new()
-	_swatches.alignment = BoxContainer.ALIGNMENT_CENTER
-	_swatches.add_theme_constant_override("separation", 0)
-	box.add_child(_swatches)
-
-	box.add_child(_slider("Brightness", 0.5, 2.5, Settings.brightness, func(v: float) -> void: Settings.brightness = v))
-	box.add_child(_slider("Contrast", 0.8, 2.0, Settings.contrast, func(v: float) -> void: Settings.contrast = v))
-	var style := _button("Style: %s" % ["CRUNCH (dither)", "PHOTO (film)"][Settings.look_mode])
-	style.custom_minimum_size = Vector2(0, 56)
-	style.add_theme_font_size_override("font_size", 26)
-	style.pressed.connect(func() -> void:
-		Settings.toggle_look_mode()
-		style.text = "Style: %s" % ["CRUNCH (dither)", "PHOTO (film)"][Settings.look_mode])
-	box.add_child(style)
-	box.add_child(_cell_toggle())
-	box.add_child(_slider("Dither", 0.0, 1.0, Settings.dither_amount, func(v: float) -> void: Settings.dither_amount = v))
+	box.add_child(_slider("Brightness", 0.6, 1.8, Settings.brightness, func(v: float) -> void: Settings.brightness = v))
 	box.add_child(_slider("Look sensitivity", 0.001, 0.012, Settings.look_sensitivity, func(v: float) -> void: Settings.look_sensitivity = v))
+	var res := _button("Picture height: %dp" % Settings.render_height)
+	res.custom_minimum_size = Vector2(0, 56)
+	res.add_theme_font_size_override("font_size", 26)
+	res.pressed.connect(func() -> void:
+		Settings.cycle_render_height()
+		res.text = "Picture height: %dp" % Settings.render_height)
+	box.add_child(res)
 
 	var build := _label(BuildInfo.label(), 20, HORIZONTAL_ALIGNMENT_RIGHT, 0.5)
 	build.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_RIGHT)
@@ -77,7 +70,7 @@ func _ready() -> void:
 	build.offset_bottom = -8
 	add_child(build)
 
-	_refresh_palette()
+	_refresh_grade()
 
 
 func _label(text: String, font_size: int, align: HorizontalAlignment, alpha := 1.0) -> Label:
@@ -113,32 +106,14 @@ func _slider(title: String, lo: float, hi: float, value: float, setter: Callable
 	return col
 
 
-func _cell_toggle() -> Control:
-	var b := _button("Dither grain: %s" % ["fine", "chunky", "coarse"][Settings.dither_cell - 1])
-	b.custom_minimum_size = Vector2(0, 56)
-	b.add_theme_font_size_override("font_size", 26)
-	b.pressed.connect(func() -> void:
-		Settings.dither_cell = Settings.dither_cell % 3 + 1
-		Settings.save()
-		b.text = "Dither grain: %s" % ["fine", "chunky", "coarse"][Settings.dither_cell - 1])
-	return b
-
-
-func _step_palette(dir: int) -> void:
-	Settings.palette = posmod(Settings.palette + dir, Palettes.count())
+func _step_grade(dir: int) -> void:
+	Settings.grade = posmod(Settings.grade + dir, Film.GRADES.size())
 	Settings.save()
-	_refresh_palette()
+	_refresh_grade()
 
 
-func _refresh_palette() -> void:
-	_palette_label.text = "Look: %s" % Palettes.preset_name(Settings.palette)
-	for c in _swatches.get_children():
-		c.queue_free()
-	for col: Color in Palettes.colors(Settings.palette):
-		var r := ColorRect.new()
-		r.color = col
-		r.custom_minimum_size = Vector2(70, 26)
-		_swatches.add_child(r)
+func _refresh_grade() -> void:
+	_grade_label.text = "Look: %s" % Film.grade_name(Settings.grade)
 
 
 func _on_start() -> void:

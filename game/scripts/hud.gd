@@ -10,6 +10,8 @@ var _fps_avg := 0.0
 var _worst_ms := 0.0
 var _worst_window := 0.0
 var _info := ""
+var _line: Label
+var _line_tween: Tween
 
 
 func _ready() -> void:
@@ -32,6 +34,19 @@ func _ready() -> void:
 	_prompt.add_theme_constant_override("outline_size", 8)
 	add_child(_prompt)
 
+	_line = Label.new()
+	_line.set_anchors_and_offsets_preset(Control.PRESET_CENTER_BOTTOM)
+	_line.offset_top = -120
+	_line.offset_left = -520
+	_line.offset_right = 520
+	_line.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_line.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_line.add_theme_font_size_override("font_size", 32)
+	_line.add_theme_color_override("font_outline_color", Color.BLACK)
+	_line.add_theme_constant_override("outline_size", 10)
+	_line.modulate.a = 0.0
+	add_child(_line)
+
 	_cross = Control.new()
 	_cross.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	_cross.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -42,6 +57,17 @@ func _ready() -> void:
 
 func set_info(text: String) -> void:
 	_info = text
+
+
+## Martin's inner voice: a short line that fades in, stays, and fades out.
+func say(text: String, seconds := 3.2) -> void:
+	_line.text = text
+	if _line_tween:
+		_line_tween.kill()
+	_line_tween = create_tween()
+	_line_tween.tween_property(_line, "modulate:a", 1.0, 0.4)
+	_line_tween.tween_interval(seconds)
+	_line_tween.tween_property(_line, "modulate:a", 0.0, 0.8)
 
 
 func set_prompt(text: String) -> void:
