@@ -133,4 +133,9 @@ buzz *= 0.5 + 0.5 * (np.sin(2 * np.pi * 17 * tb) > -0.3)
 save("lamp_buzz", buzz, 0.5)
 thump = np.zeros(int(1.2 * SR)); place(thump, np.sin(2 * np.pi * np.cumsum(np.linspace(70, 30, int(0.5 * SR))) / SR) * env_exp(int(0.5 * SR), 0.15), 0.0)
 save("thump", reverb(thump, 0.8, 0.3), 0.9)
+# TV static: hiss with a mains hum and slow bands of interference
+ts = t(6.0)
+tvs = noise(6.0) * (0.6 + 0.4 * np.sin(2 * np.pi * 0.7 * ts)) + np.sin(2 * np.pi * 50 * ts) * 0.08
+tvs = hp(tvs, 400)
+save("tv_static", loopify(tvs), 0.45)
 print("sfx done:", sorted(os.listdir(OUT)))

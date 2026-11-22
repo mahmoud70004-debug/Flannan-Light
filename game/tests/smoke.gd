@@ -7,6 +7,7 @@ extends SceneTree
 ## geometry, and the entrance must not see down the whole hall.
 
 var _failed := false
+var gs                      # the GameState autoload (not visible to the compiler when this script is loaded)
 
 
 func _check(ok: bool, what: String) -> void:
@@ -20,6 +21,7 @@ func _init() -> void:
 
 
 func _run() -> void:
+	gs = root.get_node("GameState")
 	Audio.muted = true
 	# Film grades, the filter and the shader
 	var shader := load("res://shaders/film_post.gdshader") as Shader
@@ -44,6 +46,7 @@ func _run() -> void:
 		_check(m != null and (not textured or (m.albedo_texture != null and m.normal_texture != null)), "material %s" % key)
 
 	# Scenes instantiate and survive a few frames
+	Engine.set_meta("overrides", {"spawn": "door", "no_title": "1"})
 	for path in ["res://scenes/title.tscn", "res://scenes/world.tscn"]:
 		var packed := load(path) as PackedScene
 		_check(packed != null, "%s loads" % path)
@@ -103,6 +106,18 @@ func _run() -> void:
 	var sight := space.intersect_ray(PhysicsRayQueryParameters3D.create(eye, Vector3(-6.0, 0.9, -4.9)))
 	_check(not sight.is_empty() and sight.position.x > -2.0, "from the front door the phone is hidden behind walls")
 
+	# Stranger spots must be free floor
+	for spot in flat.stranger_spots:
+		var qs := PhysicsShapeQueryParameters3D.new()
+		qs.shape = cap
+		qs.transform = Transform3D(Basis(), spot + Vector3(0, 0.88, 0))
+		qs.collision_mask = 1
+		_check(space.intersect_shape(qs, 1).is_empty() and flat.cell_at(spot) != "", "stranger spot (%.1f, %.1f) is free in %s" % [spot.x, spot.z, flat.cell_at(spot)])
+	_check(flat.movables.has("coat") and flat.movables.has("body"), "the coat and the epilogue body exist as movables")
+
+	# The story as data: every task step is something in the flat, every sound and message exists
+	_check_story_content(flat)
+
 	# Lights and switches
 	_check(flat.room_lit("entry"), "entry lamps start on")
 	flat.toggle_room("entry")
@@ -150,6 +165,9 @@ func _run() -> void:
 	await _walk_openings(flat)
 	await _reachability(flat)
 	flat.queue_free()
+	await process_frame
+
+	await _playthrough()
 
 	# Settings round-trip
 	var s := root.get_node_or_null("Settings")
@@ -188,7 +206,7 @@ func _walk_openings(flat) -> void:
 		var centre: Vector3 = t[1]
 		var n: Vector3 = t[2]
 		if t[0] in flat.doors:
-			(flat.doors[t[0]] as Door).set_open(true, false)
+			flat.doors[t[0]].set_open(true, false)
 			await physics_frame
 		for dir in [1.0, -1.0]:
 			var start: Vector3 = centre - n * 0.55 * dir
@@ -201,7 +219,7 @@ func _walk_openings(flat) -> void:
 			var progress: float = (Vector3(player.position.x, 0, player.position.z) - centre).dot(heading)
 			_check(progress > 0.8, "walked through %s %s (%.2f m past the doorway)" % [t[0], "forwards" if dir > 0.0 else "back", progress])
 		if t[0] in flat.doors:
-			(flat.doors[t[0]] as Door).set_open(false, false)
+			flat.doors[t[0]].set_open(false, false)
 
 	# The front door holds
 	player.position = Vector3(0.1, 0.05, -0.8)
@@ -225,7 +243,7 @@ func _walk(player, dir: Vector2, seconds: float) -> void:
 ## must be within reach of a reachable spot, and each room must be mostly walkable.
 func _reachability(flat) -> void:
 	for d in flat.doors:
-		(flat.doors[d] as Door).set_open(true, false)
+		flat.doors[d].set_open(true, false)
 	await physics_frame
 	await physics_frame
 	var space := root.get_world_3d().direct_space_state
@@ -280,4 +298,121 @@ func _reachability(flat) -> void:
 			best = minf(best, Vector2(p.x - pos.x, p.z - pos.z).length())
 		_check(best <= 1.25, "'%s' can be reached (nearest standing spot %.2f m)" % [id, best])
 	for d in flat.doors:
-		(flat.doors[d] as Door).set_open(false, false)
+		flat.doors[d].set_open(false, false)
+
+
+const KNOWN_NIGHT := ["footsteps_door", "knock_front", "whisper_bed", "stranger_bed", "stranger_hall"]
+
+
+func _check_story_content(flat) -> void:
+	var director = (load("res://scripts/director.gd") as GDScript).new()
+	var valid_ids: Array = flat.use_points.keys() + [Days.PHOTO_STEP, "bed1"]
+	var sounds := ["step_0", "step_3", "cough_0", "cough_1", "knock3", "knock1", "door_creak", "lamp_buzz", "breath", "whisper_0", "whisper_4", "laugh_0", "laugh_1", "tv_static", "phone_ring", "handset", "machine_new", "machine_end", "machine_beep", "shutter", "click", "drip", "heartbeat", "drone", "room_tone", "street", "fridge_hum", "flies_loop", "jack_greeting", "greeting"]
+	for n in sounds:
+		_check(Audio.stream(n) != null, "sound '%s' exists" % n)
+	for i in range(1, Days.COUNT + 1):
+		var d: Dictionary = Days.get_day(i)
+		var ids := {}
+		for t in d["tasks"]:
+			_check(not ids.has(t["id"]), "day %d: task id '%s' is unique" % [i, t["id"]])
+			ids[t["id"]] = true
+			for step in t["steps"]:
+				_check(step in valid_ids, "day %d: step '%s' is something in the flat" % [i, step])
+			if t.has("doc"):
+				_check(Docs.LIST.has(t["doc"]) and Docs.get_doc(t["doc"])["body"] != "", "day %d: document '%s' exists" % [i, t["doc"]])
+			if t.has("vm"):
+				_check(FileAccess.file_exists("res://assets/audio/%s.json" % t["vm"]) and Audio.stream(t["vm"]) != null, "day %d: voicemail '%s' exists with captions" % [i, t["vm"]])
+		for s in d["scripted"]:
+			_check(director.has_method("_ev_" + s["do"]), "day %d: scripted event '%s' exists" % [i, s["do"]])
+		for e in d["events"]["pool"]:
+			_check(director.has_method("_ev_" + e), "day %d: random event '%s' exists" % [i, e])
+		for n in d["night"]:
+			_check(n in KNOWN_NIGHT, "day %d: night event '%s' exists" % [i, n])
+		_check(d["fear"] >= 0.0 and d["fear"] <= 1.0 and d["flies"] >= 0.0, "day %d: fear and flies are in range" % i)
+	for id in Days.EXAMINE:
+		_check(id in valid_ids, "examine text is for a real prop: %s" % id)
+	for k in Docs.LIST:
+		_check(Docs.LIST[k]["body"].length() > 20, "document %s has text" % k)
+	director.free()
+
+
+## A bot plays the whole game at ten times speed: every day's tasks, every random event once, the
+## nights, the last day, the ending and the epilogue. Nothing may error and the story must finish.
+func _playthrough() -> void:
+	Engine.time_scale = 10.0
+	Engine.set_meta("overrides", {"spawn": "door", "no_title": "1"})
+	var w = (load("res://scenes/world.tscn") as PackedScene).instantiate()
+	root.add_child(w)
+	await process_frame
+	await process_frame
+	var story = w._story
+	var apartment: Apartment = w._apartment
+	var hud = w._hud
+	var director = w._director
+	var stranger: Stranger = w._stranger
+	var done := [false]
+	story.finished.connect(func() -> void: done[0] = true)
+	gs.new_game()
+	await story.start_day()
+	_check(story.is_free() and gs.day == 1, "day 1 begins after the card")
+	for day in range(1, Days.COUNT + 1):
+		var data: Dictionary = Days.get_day(day)
+		_check(gs.day == day, "the game is on day %d" % day)
+		for ev in data["events"]["pool"]:
+			await director.fire(ev)
+			stranger.vanish()
+		for t in data["tasks"]:
+			if t.has("vm") or data.has("vm"):
+				await director.fire("phone_ring")
+			for step in t["steps"]:
+				await _bot_use(story, hud, step)
+			_check(gs.is_done(t["id"]), "day %d: task '%s' completes" % [day, t["id"]])
+		if data.get("final", false):
+			break
+		story.on_used("bed1")
+		var waited := 0.0
+		var t0 := Time.get_ticks_msec()
+		while (gs.day != day + 1 or not story.is_free()) and waited < 120.0:
+			await process_frame
+			waited = (Time.get_ticks_msec() - t0) / 1000.0
+			if hud.doc_open:
+				hud.close_doc()
+		_check(gs.day == day + 1 and story.is_free(), "sleeping on day %d leads to day %d" % [day, day + 1])
+	var waited2 := 0.0
+	var t0b := Time.get_ticks_msec()
+	while not stranger.final_mode and waited2 < 60.0:
+		await process_frame
+		waited2 = (Time.get_ticks_msec() - t0b) / 1000.0
+	_check(stranger.final_mode and stranger.state != Stranger.State.HIDDEN, "on the last day the stranger waits in the living room")
+	story._ending()
+	waited2 = 0.0
+	var t0c := Time.get_ticks_msec()
+	while not done[0] and waited2 < 200.0:
+		await process_frame
+		waited2 = (Time.get_ticks_msec() - t0c) / 1000.0
+		if hud.doc_open:
+			hud.close_doc()
+	_check(done[0], "the ending and the epilogue play to the end")
+	_check(gs.ended, "the save marks the game as finished")
+	Engine.time_scale = 1.0
+	gs.erase()
+	w.queue_free()
+	await process_frame
+	await process_frame
+
+
+func _bot_use(story, hud, id: String) -> void:
+	if id == Days.PHOTO_STEP:
+		story.take_photo()
+		await process_frame
+		return
+	story.on_used(id)
+	var waited := 0.0
+	var t0 := Time.get_ticks_msec()
+	while waited < 90.0:
+		await process_frame
+		waited = (Time.get_ticks_msec() - t0) / 1000.0
+		if hud.doc_open:
+			hud.close_doc()
+		if story.is_free():
+			break

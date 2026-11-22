@@ -100,6 +100,10 @@ var front_door: Interactable
 var use_points := {}                   ## id -> Interactable (props the game logic cares about)
 var pois := {}                         ## id -> floor position, for reachability tests
 var swarms: Array = []                 ## Flies nodes
+var movables := {}                     ## id -> Node3D that the story can show, hide or move
+var stranger_spots: Array = []         ## floor positions where the stranger may stand
+var _tv: MeshInstance3D
+var _tv_mat: StandardMaterial3D
 var phone: Interactable
 var _panes: Array[MeshInstance3D] = []
 var _lines := {}                       ## wall line key -> side records (wall generation)
@@ -684,6 +688,94 @@ func stain(cell: String, center: Vector3, normal: Vector3, size: float, aspect :
 ## A soft shadow under a piece of furniture (fake occlusion).
 func blob_shadow(cell: String, center: Vector3, w: float, d: float) -> void:
 	quad(Vector3(center.x, 0.004, center.z), Vector3.UP, Vector3.BACK, w, d, "_stain", layer_of(cell))
+
+
+# --- things the story moves, a TV that wakes up, the epilogue ------------------------------------
+
+## A small object made of separate meshes, so the story can hide or move it.
+## parts: [[offset, size, material key, optional "sphere"]]
+func make_movable(id: String, cell: String, pos: Vector3, parts: Array, yaw := 0.0, shown := true) -> Node3D:
+	var n := Node3D.new()
+	n.position = pos
+	n.rotation.y = yaw
+	add_child(n)
+	for p in parts:
+		var mi := MeshInstance3D.new()
+		if p.size() > 3 and p[3] == "sphere":
+			var sm := SphereMesh.new()
+			sm.radius = (p[1] as Vector3).x
+			sm.height = (p[1] as Vector3).x * 2.0
+			sm.radial_segments = 12
+			sm.rings = 6
+			mi.mesh = sm
+		else:
+			mi.mesh = RoomKit.box_mesh(p[1], p[2])
+		mi.material_override = Mats.get_mat(p[2])
+		mi.position = p[0]
+		mi.layers = layer_of(cell) | L_JAMB
+		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		n.add_child(mi)
+		cull_items.append(mi)
+	n.visible = shown
+	movables[id] = n
+	return n
+
+
+func set_movable_visible(id: String, on: bool) -> void:
+	if movables.has(id):
+		(movables[id] as Node3D).visible = on
+
+
+func setup_tv(pos: Vector3, w: float, h: float) -> void:
+	var img := Image.create(96, 54, false, Image.FORMAT_L8)
+	for y in 54:
+		for x in 96:
+			var v := randf()
+			img.set_pixel(x, y, Color(v, v, v))
+	_tv_mat = StandardMaterial3D.new()
+	_tv_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	_tv_mat.albedo_texture = ImageTexture.create_from_image(img)
+	_tv_mat.texture_filter = BaseMaterial3D.TEXTURE_FILTER_NEAREST
+	_tv_mat.texture_repeat = true
+	_tv = MeshInstance3D.new()
+	var q := QuadMesh.new()
+	q.size = Vector2(w, h)
+	_tv.mesh = q
+	_tv.material_override = _tv_mat
+	_tv.position = pos
+	_tv.layers = L_LIV
+	_tv.visible = false
+	add_child(_tv)
+	cull_items.append(_tv)
+
+
+func tv_position() -> Vector3:
+	return _tv.position if _tv else Vector3(1.0, 1.0, -9.2)
+
+
+func set_tv(on: bool) -> void:
+	if _tv:
+		_tv.visible = on
+
+
+func set_tv_level(v: float) -> void:
+	if _tv_mat:
+		_tv_mat.albedo_color = Color(v, v, v * 1.05)
+		_tv_mat.uv1_offset = Vector3(randf(), randf(), 0.0)
+
+
+## Forty-one days later: the lamps are off but one, the windows are bright, and he is on the sofa.
+func show_epilogue() -> void:
+	for c in lamps:
+		set_room_lit(c, c == "living_floor")
+	set_window_light(Color(0.55, 0.6, 0.66))
+	set_movable_visible("body", true)
+	set_tv(true)
+	set_tv_level(0.5)
+	for f in swarms:
+		(f as Flies).intensity = 1.0
+	add_flies("living", Vector3(1.0, 1.2, -6.4), 26, 0.5).intensity = 1.0
+	add_flies("living", Vector3(1.0, 0.9, -6.7), 22, 0.35).intensity = 1.0
 
 
 # --- for the world, look-dev and tests -------------------------------------------------

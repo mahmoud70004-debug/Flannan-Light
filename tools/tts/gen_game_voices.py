@@ -41,19 +41,28 @@ def finish(name, x, peak=0.85):
     sf.write(os.path.join(OUT, name + ".wav"), (x / max(np.abs(x).max(), 1e-9) * peak).astype(np.float32), SR)
     print(name, round(len(x) / SR, 1), "s")
 
+import json
+STRETCH = 1 / 0.985                 # pitch() lengthens the clip by this factor
+
 def voicemail(name, segs, voice="am_onyx"):
     parts = [silence(0.5)]
+    cursor = 0.5
+    lines = []
     for s in segs:
         text, speed, pause = s[0], s[1], s[2]
         tag = s[3] if len(s) > 3 else ""
-        if tag == "breath": parts.append(inhale())
+        if tag == "breath":
+            b = inhale(); parts.append(b); cursor += len(b) / SR
         a = say(text, voice, speed)
+        lines.append({"t": round(cursor * STRETCH, 2), "d": round(len(a) / SR * STRETCH, 2), "text": text.replace("...", "…")})
         # worried, tired delivery: a touch of pitch drop on the closing words, softer overall
-        parts.append(a * 0.9)
-        if tag == "sigh": parts.append(sigh())
-        parts.append(silence(pause))
+        parts.append(a * 0.9); cursor += len(a) / SR
+        if tag == "sigh":
+            sg = sigh(); parts.append(sg); cursor += len(sg) / SR
+        parts.append(silence(pause)); cursor += pause
     x = np.concatenate(parts)
     x = pitch(x, 0.985)
+    json.dump({"duration": round(len(x) / SR, 2), "lines": lines}, open(os.path.join(OUT, name + ".json"), "w"), ensure_ascii=False)
     finish(name, phone(reverb(x, 0.3, 0.08)), 0.8)
 
 VM = {

@@ -34,8 +34,15 @@ func _ready() -> void:
 	box.add_child(_label(GAME_TITLE, 64, HORIZONTAL_ALIGNMENT_CENTER))
 	box.add_child(_label("Pottsfield Studio", 22, HORIZONTAL_ALIGNMENT_CENTER, 0.55))
 
-	var start := _button("START")
-	start.pressed.connect(_on_start)
+	if GameState.has_save() and not GameState.ended and GameState.load_game():
+		var cont := _button("CONTINUE · DAY %d" % GameState.day)
+		cont.pressed.connect(func() -> void: _go())
+		box.add_child(cont)
+	var start := _button("NEW GAME" if GameState.has_save() else "START")
+	start.pressed.connect(func() -> void:
+		GameState.erase()
+		GameState.new_game()
+		_go())
 	box.add_child(start)
 
 	var row := HBoxContainer.new()
@@ -68,6 +75,13 @@ func _ready() -> void:
 		Settings.cycle_msaa()
 		aa.text = "Anti-aliasing: %s" % ["off", "2x", "4x"][Settings.msaa])
 	box.add_child(aa)
+	var vol := _button("Volume: %d%%" % int(round(Settings.volume * 100.0)))
+	vol.custom_minimum_size = Vector2(0, 56)
+	vol.add_theme_font_size_override("font_size", 26)
+	vol.pressed.connect(func() -> void:
+		Settings.cycle_volume()
+		vol.text = "Volume: %d%%" % int(round(Settings.volume * 100.0)))
+	box.add_child(vol)
 	var res := _button("Picture height: %dp" % Settings.render_height)
 	res.custom_minimum_size = Vector2(0, 56)
 	res.add_theme_font_size_override("font_size", 26)
@@ -130,7 +144,7 @@ func _refresh_grade() -> void:
 	_grade_label.text = "Look: %s" % Film.grade_name(Settings.grade)
 
 
-func _on_start() -> void:
+func _go() -> void:
 	if OS.has_feature("web"):
 		DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_FULLSCREEN)
 		JavaScriptBridge.eval("try{screen.orientation.lock('landscape').catch(function(){})}catch(e){}")

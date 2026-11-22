@@ -5,7 +5,7 @@ signal changed
 
 const PATH := "user://settings.cfg"
 const RENDER_HEIGHTS := [360, 480, 540, 720, 1080]
-const VERSION := 5                 ## stored with the file; older looks are discarded
+const VERSION := 6                 ## stored with the file; older looks are discarded
 
 var look_sensitivity: float = 0.0045   ## radians per UI pixel dragged
 var render_height: int = 540           ## height of the 3D image; the screen is upscaled from it
@@ -14,7 +14,8 @@ var grade: int = 0                     ## index into Film.GRADES
 var fx: int = 4                        ## pixel/dither filter: 0 off, 1-3 fixed, 4 = AUTO (follows fear)
 var msaa: int = 0                      ## 0 off, 1 = 2x, 2 = 4x
 var shadows: int = 0                   ## 0 off, 1 corridor lamps, 2 every lamp
-var show_debug: bool = true
+var show_debug: bool = false
+var volume: float = 1.0                ## master volume 0..1
 
 
 func _ready() -> void:
@@ -33,6 +34,7 @@ func _ready() -> void:
 	fx = clampi(int(cfg.get_value("video", "fx", fx)), 0, Film.FX_NAMES.size() - 1)
 	msaa = clampi(int(cfg.get_value("video", "msaa", msaa)), 0, 2)
 	shadows = clampi(int(cfg.get_value("video", "shadows", shadows)), 0, 2)
+	volume = clampf(cfg.get_value("audio", "volume", volume), 0.0, 1.0)
 
 
 func save() -> void:
@@ -45,6 +47,7 @@ func save() -> void:
 	cfg.set_value("video", "fx", fx)
 	cfg.set_value("video", "msaa", msaa)
 	cfg.set_value("video", "shadows", shadows)
+	cfg.set_value("audio", "volume", volume)
 	cfg.set_value("debug", "show_debug", show_debug)
 	cfg.save(PATH)
 	changed.emit()
@@ -63,6 +66,16 @@ func cycle_shadows() -> void:
 
 func cycle_grade() -> void:
 	grade = (grade + 1) % Film.GRADES.size()
+	save()
+
+
+func cycle_volume() -> void:
+	volume = {1.0: 0.7, 0.7: 0.4, 0.4: 0.0}.get(snappedf(volume, 0.1), 1.0)
+	save()
+
+
+func toggle_debug() -> void:
+	show_debug = not show_debug
 	save()
 
 

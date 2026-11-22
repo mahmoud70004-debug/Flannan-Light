@@ -12,6 +12,7 @@ static func furnish(a: Apartment) -> void:
 	_storage(a)
 	_bed1(a)
 	_bed2(a)
+	_spots(a)
 
 
 # --- generic pieces --------------------------------------------------------------------
@@ -183,8 +184,8 @@ static func _entry(a: Apartment) -> void:
 	_p(a, c, Vector3(-0.78, 0.17, -1.7), Vector3(0.3, 0.34, 0.8), "dark_wood")                       # shoe rack
 	for i in 4:
 		_p(a, c, Vector3(-0.78, 0.4, -2.0 + float(i) * 0.2), Vector3(0.22, 0.09, 0.13), "leather", float(i) * 0.4, false)
-	_p(a, c, Vector3(-0.9, 1.55, -1.1), Vector3(0.04, 0.04, 0.5), "brass", 0.0, false)               # hooks and coats
-	_p(a, c, Vector3(-0.84, 1.0, -1.1), Vector3(0.1, 1.1, 0.3), "cloth_grey", 0.0, false)
+	_p(a, c, Vector3(-0.9, 1.55, -1.1), Vector3(0.04, 0.04, 0.5), "brass", 0.0, false)               # hooks
+	a.make_movable("coat", c, Vector3(-0.84, 1.0, -1.1), [[Vector3.ZERO, Vector3(0.1, 1.1, 0.3), "cloth_grey"], [Vector3(0, 0.5, 0.0), Vector3(0.12, 0.08, 0.2), "cloth_grey"]])   # Martin's coat
 	_p(a, c, Vector3(0.1, 0.007, -0.32), Vector3(0.8, 0.014, 0.45), "cloth_grey", 0.0, false)        # doormat
 	for i in 7:                                                                                     # the mail, piled up by the door
 		_p(a, c, Vector3(0.55 + float(i % 3) * 0.08, 0.012 + float(i) * 0.006, -0.55 + sin(float(i)) * 0.07), Vector3(0.22, 0.004, 0.14), "paper", float(i) * 0.7, false)
@@ -250,6 +251,15 @@ static func _living(a: Apartment) -> void:
 	_p(a, c, Vector3(1.0, 0.98, -9.255), Vector3(1.07, 0.6, 0.01), "glass", 0.0, false)
 	_p(a, c, Vector3(1.0, 0.6, -9.27), Vector3(0.1, 0.3, 0.1), "black", 0.0, false)
 	a.use_point("tv", "Turn on the TV", Vector3(1.4, 1.0, 0.6), Vector3(1.0, 0.8, -9.2))
+	a.setup_tv(Vector3(1.0, 0.98, -9.245), 1.07, 0.6)
+	# He is on the sofa, in the epilogue only: slumped, facing the TV, in the grey hoodie and jeans
+	a.make_movable("body", c, Vector3(1.0, 0.0, -6.4), [
+		[Vector3(0, 0.78, 0.12), Vector3(0.5, 0.56, 0.3), "cloth_grey"],
+		[Vector3(-0.12, 0.56, -0.28), Vector3(0.15, 0.16, 0.6), "cloth_blue"],
+		[Vector3(0.12, 0.56, -0.28), Vector3(0.15, 0.16, 0.6), "cloth_blue"],
+		[Vector3(-0.3, 0.7, -0.05), Vector3(0.09, 0.09, 0.4), "cloth_grey"],
+		[Vector3(0.3, 0.7, -0.05), Vector3(0.09, 0.09, 0.4), "cloth_grey"],
+		[Vector3(0.02, 1.2, 0.15), Vector3(0.12, 0.12, 0.12), "skin", "sphere"]], 0.0, false)
 	_sofa(a, c, Vector3(1.0, 0, -6.5), 0.0, 2.1)
 	_p(a, c, Vector3(0.5, 0.6, -6.4), Vector3(0.9, 0.1, 0.6), "cloth_grey", 0.3, false)              # blanket thrown on the sofa
 	_p(a, c, Vector3(1.5, 0.6, -6.55), Vector3(0.4, 0.16, 0.3), "cloth_blue", -0.4, false)           # a jacket
@@ -387,3 +397,12 @@ static func _bed2(a: Apartment) -> void:
 	_picture(a, c, Vector3(-3.34, 1.6, -8.8), Vector3(1, 0, 0), 0.5, 0.7, "cloth_red")                # poster
 	_litter(a, c, Vector3(-2.3, 0, -6.3), 3, 0.4, 4)
 	a.stain(c, Vector3(-2.2, 2.49, -7.5), Vector3(0, -1, 0), 1.4)
+
+
+static func _spots(a: Apartment) -> void:
+	a.stranger_spots = [
+		Vector3(-5.5, 0, -4.9), Vector3(-3.4, 0, -4.9), Vector3(-1.7, 0, -4.9),
+		Vector3(-0.2, 0, -4.4), Vector3(0.1, 0, -3.3), Vector3(2.4, 0, -3.4), Vector3(4.2, 0, -3.1),
+		Vector3(4.3, 0, -8.2), Vector3(2.4, 0, -8.3), Vector3(0.0, 0, -7.6), Vector3(2.4, 0, -5.0),
+		Vector3(2.4, 0, -1.4), Vector3(3.6, 0, -1.5),
+		Vector3(-4.9, 0, -6.3), Vector3(-2.2, 0, -6.3), Vector3(-5.1, 0, -3.3), Vector3(-2.4, 0, -3.3)]

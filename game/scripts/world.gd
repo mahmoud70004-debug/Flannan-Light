@@ -1,43 +1,57 @@
 extends Node
-## The game world: Martin's flat, the first-person player, and the render pipeline
-## (3D at a chosen height -> film shader -> screen). Debug aids for look-dev and
-## tests: add ?spawn=<spot>&res=<height>&grade=<n>&shadows=<n>&fx=<0-4>&fear=<0-1> to the web URL,
-## or pass `-- --spawn=<spot> --res=<height> --fear=0.5` to the Godot command line.
-## `spawn=plan` is a top-down view with the ceilings hidden.
+## The game world: Martin's flat, the first-person player, the story and the horror director, and the
+## render pipeline (3D at a chosen height -> film shader -> screen). Debug aids for look-dev and
+## tests: add ?spawn=<spot>&day=<n>&res=<height>&grade=<n>&shadows=<n>&fx=<0-4>&fear=<0-1> to the
+## web URL, or pass `-- --spawn=<spot> --day=3` to the Godot command line. A spawn skips the story
+## and shows the flat as it is on that day; `spawn=plan` is a top-down view with the ceilings hidden.
 
 const SHADER := preload("res://shaders/film_post.gdshader")
+const TITLE := "res://scenes/title.tscn"
 
 var _view: SubViewport
+var _root3d: Node3D
 var _post_mat: ShaderMaterial
 var _player: Player
 var _controls: TouchControls
 var _hud: Hud
 var _apartment: Apartment
 var _env: Environment
+var _stranger: Stranger
+var _director: Director
+var _story: Story
+var _ambience: Ambience
 var _overrides := {}
-var _elapsed := 0.0
-var _spike := 0.0                 ## a short burst of extra fear (events call boost_fear)
-var _next_spike := 25.0
-var fear := 0.0                   ## 0..1 story tension; drives the pixel/dither filter in AUTO
+var _debug_scene := false
 
 
 func _ready() -> void:
 	_read_overrides()
+	_debug_scene = _overrides.has("spawn")
+	if _overrides.has("day"):
+		GameState.day = clampi(int(_overrides["day"]), 1, Days.COUNT)
 	_build_view()
 	_build_world()
 	_build_ui()
 	_apply_settings()
 	get_viewport().size_changed.connect(_apply_settings)
 	Settings.changed.connect(_apply_settings)
+	_hud.set_fade(0.0 if _debug_scene else 1.0)
+	if _debug_scene:
+		_story.show_debug_day()
+		return
+	_story.start_day()
 
 
 ## Debug arguments from the URL (web) or command line (desktop).
 func _read_overrides() -> void:
 	if OS.has_feature("web"):
-		for key in ["spawn", "res", "grade", "shadows", "msaa", "fx", "fear"]:
+		for key in ["spawn", "day", "res", "grade", "shadows", "msaa", "fx", "fear"]:
 			var v := str(JavaScriptBridge.eval("new URLSearchParams(location.search).get('%s') || ''" % key))
 			if v != "":
 				_overrides[key] = v
+	var injected: Dictionary = Engine.get_meta("overrides", {})        # tests pass their own
+	for k in injected:
+		_overrides[k] = str(injected[k])
 	for a in OS.get_cmdline_user_args():
 		var kv := (a as String).trim_prefix("--").split("=")
 		if kv.size() == 2:
@@ -48,25 +62,6 @@ func _opt(key: String, stored: int) -> int:
 	return int(_overrides[key]) if _overrides.has(key) else stored
 
 
-## Extra fear for a moment (an event, a sound). Decays on its own.
-func boost_fear(amount: float) -> void:
-	_spike = maxf(_spike, amount)
-
-
-## Tension over time: a slow rise from 0.12 to about 0.9 over ten minutes, a breathing
-## wobble, and now and then a spike. Events add to it with boost_fear().
-func _update_fear(delta: float) -> void:
-	_elapsed += delta
-	_spike = maxf(_spike - delta / 1.6 * 0.35, 0.0)
-	if _elapsed >= _next_spike:
-		_spike = maxf(_spike, 0.3)
-		_next_spike = _elapsed + randf_range(25.0, 55.0)
-	var base := 0.12 + 0.78 * smoothstep(0.0, 600.0, _elapsed)
-	fear = clampf(base + 0.05 * sin(_elapsed * 0.6) + _spike, 0.0, 1.0)
-	if _overrides.has("fear"):
-		fear = clampf(float(_overrides["fear"]), 0.0, 1.0)
-
-
 # --- render pipeline --------------------------------------------------------
 
 func _build_view() -> void:
@@ -74,6 +69,8 @@ func _build_view() -> void:
 	_view.screen_space_aa = Viewport.SCREEN_SPACE_AA_DISABLED
 	_view.render_target_update_mode = SubViewport.UPDATE_ALWAYS
 	add_child(_view)
+	_root3d = Node3D.new()
+	_view.add_child(_root3d)
 
 	var layer := CanvasLayer.new()
 	layer.layer = 1
@@ -100,13 +97,15 @@ func _apply_settings() -> void:
 	var shadows := _opt("shadows", Settings.shadows)
 	if _apartment:
 		_apartment.apply_shadows(shadows)
+	Sfx.set_volume(Settings.volume)
 	_apply_film()
 	if _hud:
 		var grade := _opt("grade", Settings.grade)
-		_hud.set_info("%s · FX %s · %dp · MSAA %s · shadows %s · %s" % [Film.grade_name(grade), Film.fx_name(_opt("fx", Settings.fx)), h, ["off", "2x", "4x"][aa], ["off", "hall", "all"][shadows], BuildInfo.label()])
+		_hud.set_info("%s · FX %s · %dp · MSAA %s · shadows %s · day %d · %s" % [Film.grade_name(grade), Film.fx_name(_opt("fx", Settings.fx)), h, ["off", "2x", "4x"][aa], ["off", "hall", "all"][shadows], GameState.day, BuildInfo.label()])
 
 
 func _apply_film() -> void:
+	var fear := float(_overrides["fear"]) if _overrides.has("fear") else (_story.fear if _story else 0.0)
 	var amount := Film.fx_amount(_opt("fx", Settings.fx), fear)
 	Film.apply(_post_mat, _opt("grade", Settings.grade), Settings.brightness, amount)
 
@@ -127,17 +126,42 @@ func _build_world() -> void:
 	_env.fog_density = 0.035
 	var world_env := WorldEnvironment.new()
 	world_env.environment = _env
-	_view.add_child(world_env)
+	_root3d.add_child(world_env)
 
 	_apartment = Apartment.new()
-	_view.add_child(_apartment)
-	_apartment.said.connect(func(t: String) -> void: _hud.say(t))
+	_root3d.add_child(_apartment)
 
 	_player = Player.new()
-	_view.add_child(_player)
+	_root3d.add_child(_player)
 	_apartment.viewer = _player
 	_player.position = _apartment.spawn_point()
 	_player.rotation.y = _apartment.spawn_yaw()
+
+	_stranger = Stranger.new()
+	_stranger.player = _player
+	_stranger.apartment = _apartment
+	_root3d.add_child(_stranger)
+
+	Sfx.world = _root3d
+	_ambience = Ambience.new()
+	add_child(_ambience)
+	_ambience.setup(_apartment)
+
+	_director = Director.new()
+	_director.apartment = _apartment
+	_director.player = _player
+	_director.stranger = _stranger
+	add_child(_director)
+
+	_story = Story.new()
+	_story.apartment = _apartment
+	_story.player = _player
+	_story.stranger = _stranger
+	_story.director = _director
+	_story.ambience = _ambience
+	add_child(_story)
+	_director.story = _story
+
 	var spot := str(_overrides.get("spawn", ""))
 	var spots := _apartment.debug_spots()
 	if spots.has(spot):
@@ -145,7 +169,8 @@ func _build_world() -> void:
 		_player.rotation.y = spots[spot][1]
 		_player.set_pitch(spots[spot][2])
 	elif spot == "plan":
-		_player.position = Vector3(-0.8, 15.0, -5.0)
+		var f := _apartment.footprint()
+		_player.position = Vector3((f[0] + f[1]) * 0.5, 15.0, (f[2] + f[3]) * 0.5)
 		_player.rotation.y = 0.0
 		_player.set_pitch(-PI / 2.0)
 		_player.set_physics_process(false)
@@ -159,30 +184,89 @@ func _build_world() -> void:
 func _build_ui() -> void:
 	_hud = Hud.new()
 	add_child(_hud)
+	_story.hud = _hud
 	var layer := CanvasLayer.new()
 	layer.layer = 10
+	layer.process_mode = Node.PROCESS_MODE_ALWAYS
 	add_child(layer)
 	_controls = TouchControls.new()
 	layer.add_child(_controls)
-	_controls.look.connect(func(rel: Vector2) -> void: _player.look_by(rel, Settings.look_sensitivity))
+	_story.controls = _controls
+	_controls.look.connect(func(rel: Vector2) -> void:
+		if not get_tree().paused:
+			_player.look_by(rel, Settings.look_sensitivity))
 	_controls.interact_pressed.connect(_on_interact)
-	_controls.menu_pressed.connect(func() -> void: get_tree().change_scene_to_file("res://scenes/title.tscn"))
-	_controls.grade_pressed.connect(Settings.cycle_grade)
-	_controls.resolution_pressed.connect(Settings.cycle_render_height)
-	_controls.shadows_pressed.connect(Settings.cycle_shadows)
-	_controls.fx_pressed.connect(Settings.cycle_fx)
+	_controls.menu_pressed.connect(_toggle_menu)
+	_controls.tasks_pressed.connect(func() -> void:
+		if _story.is_free():
+			_story.show_tasks(5.0))
+	_controls.photo_pressed.connect(_story.take_photo)
+	_apartment.used.connect(_story.on_used)
+	_apartment.said.connect(_hud.say)
+	_stranger.vanished.connect(_director.on_stranger_vanished)
+	_story.finished.connect(_to_title)
+	_hud.doc_closed.connect(func() -> void: pass)
 
 
 func _on_interact() -> void:
+	if not _story.is_free() and not _debug_scene:
+		return
 	var t := _player.target()
 	if t:
 		t.call("interact")
 
 
+func _toggle_menu() -> void:
+	if _hud.menu_open:
+		_hud.close_menu()
+		get_tree().paused = false
+		return
+	if _hud.card_open or _hud.doc_open:
+		return
+	get_tree().paused = true
+	_open_menu()
+
+
+func _open_menu() -> void:
+	var resume := func() -> void:
+		_hud.close_menu()
+		get_tree().paused = false
+	var rebuild := func(fn: Callable) -> Callable:
+		return func() -> void:
+			fn.call()
+			_open_menu()
+	_hud.open_menu([
+		{"text": "RESUME", "call": resume},
+		{"text": "Look: %s" % Film.grade_name(Settings.grade), "call": rebuild.call(Settings.cycle_grade)},
+		{"text": "Pixel filter: %s" % Film.fx_name(Settings.fx), "call": rebuild.call(Settings.cycle_fx)},
+		{"text": "Picture height: %dp" % Settings.render_height, "call": rebuild.call(Settings.cycle_render_height)},
+		{"text": "Shadows: %s" % ["off", "hall", "all"][Settings.shadows], "call": rebuild.call(Settings.cycle_shadows)},
+		{"text": "Anti-aliasing: %s" % ["off", "2x", "4x"][Settings.msaa], "call": rebuild.call(Settings.cycle_msaa)},
+		{"text": "Volume: %d%%" % int(round(Settings.volume * 100.0)), "call": rebuild.call(Settings.cycle_volume)},
+		{"text": "Debug info: %s" % ("on" if Settings.show_debug else "off"), "call": rebuild.call(Settings.toggle_debug)},
+		{"text": "SAVE AND QUIT", "call": func() -> void:
+			GameState.save()
+			_to_title.call()},
+	])
+
+
+func _to_title() -> void:
+	if _overrides.has("no_title"):
+		return
+	get_tree().paused = false
+	Sfx.clear()
+	_ambience.stop_all()
+	get_tree().change_scene_to_file(TITLE)
+
+
 func _process(delta: float) -> void:
-	_update_fear(delta)
-	_apply_film()
+	_controls.blocked = _hud.doc_open or _hud.card_open or _hud.menu_open
+	_controls.lock_move = (_story.busy or _story.locked) and not _debug_scene
 	_player.move_input = _controls.move_vector
 	var t := _player.target()
-	_controls.can_interact = t != null
-	_hud.set_prompt(str(t.get("prompt")) if t else "")
+	_controls.can_interact = t != null and (_story.is_free() or _debug_scene)
+	_hud.set_prompt(str(t.get("prompt")) if (t and (_story.is_free() or _debug_scene) and not _hud.card_open) else "")
+	if not _debug_scene:
+		_director.update(delta)
+	_ambience.update(delta, _story.fear)
+	_apply_film()
