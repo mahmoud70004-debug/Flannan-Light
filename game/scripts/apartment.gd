@@ -7,6 +7,7 @@ extends RoomKit
 ## is on the south side; the landline stands at the far north end of the back hall.
 
 signal said(text: String)             ## a line of Martin's inner voice for the HUD
+signal used(id: String)               ## the player used a prop registered with use_point()
 
 const H := 2.5
 const DOOR_H := 2.05
@@ -18,110 +19,91 @@ const X_E := 5.0
 const Z_S := 0.0
 const Z_N := -10.0
 
-const L_HALLF := 1 << 1
-const L_HALLB := 1 << 2
-const L_BATH := 1 << 3
-const L_DADS := 1 << 4
-const L_BED := 1 << 5
-const L_SPARE := 1 << 6
-const L_UTIL := 1 << 7
-const L_KIT := 1 << 8
-const L_LIV := 1 << 9
-const L_BOX := 1 << 10
-const L_STUDY := 1 << 11
+const L_ENTRY := 1 << 1
+const L_KIT := 1 << 2
+const L_LIV := 1 << 3
+const L_HALL := 1 << 4
+const L_BATH := 1 << 5
+const L_STOR := 1 << 6
+const L_BED1 := 1 << 7
+const L_BED2 := 1 << 8
 const L_JAMB := 1 << 12              ## door/window reveals: lit by every lamp, since two rooms see them
 
 ## cell -> {r: [x0, x1, z0, z1] on the wall centre lines (z0 is the north edge), floor, wall, layer}
 const CELLS := {
-	"hall_front": {"r": [-1.0, 0.4, -4.6, 0.0], "floor": "floor_hall", "wall": "wall", "layer": L_HALLF},
-	"hall_back": {"r": [-1.0, 0.4, -10.0, -4.6], "floor": "floor_hall", "wall": "wall", "layer": L_HALLB},
-	"hall_w": {"r": [-6.6, -1.0, -7.4, -6.0], "floor": "floor_hall", "wall": "wall", "layer": L_HALLB},
-	"bath": {"r": [-3.4, -1.0, -2.6, 0.0], "floor": "tile", "wall": "wall_damp", "layer": L_BATH},
-	"dads": {"r": [-3.4, -1.0, -6.0, -2.6], "floor": "floor_hall", "wall": "wall", "layer": L_DADS},
-	"bedroom": {"r": [-6.6, -3.4, -6.0, -2.6], "floor": "floor_wood", "wall": "wall", "layer": L_BED},
-	"dressing": {"r": [-6.6, -3.4, -2.6, 0.0], "floor": "floor_wood", "wall": "wall", "layer": L_BED},
-	"spare": {"r": [-6.6, -3.4, -10.0, -7.4], "floor": "floor_wood", "wall": "wall", "layer": L_SPARE},
-	"utility": {"r": [-3.4, -1.0, -10.0, -7.4], "floor": "tile", "wall": "wall_damp", "layer": L_UTIL},
-	"kitchen": {"r": [0.4, 5.0, -3.0, 0.0], "floor": "tile", "wall": "wall", "layer": L_KIT},
-	"living": {"r": [0.4, 5.0, -8.0, -3.0], "floor": "floor_wood", "wall": "wall", "layer": L_LIV},
-	"box": {"r": [0.4, 2.6, -10.0, -8.0], "floor": "floor_hall", "wall": "wall", "layer": L_BOX},
-	"study": {"r": [2.6, 5.0, -10.0, -8.0], "floor": "floor_wood", "wall": "wall", "layer": L_STUDY},
+	"entry": {"r": [-1.0, 1.2, -2.2, 0.0], "floor": "floor_hall", "wall": "wall", "layer": L_ENTRY},
+	"kitchen": {"r": [1.2, 5.0, -2.2, 0.0], "floor": "tile", "wall": "wall", "layer": L_KIT},
+	"living": {"r": [-1.0, 5.0, -9.6, -2.2], "floor": "floor_wood", "wall": "wall", "layer": L_LIV},
+	"hall": {"r": [-6.4, -1.0, -5.6, -4.2], "floor": "floor_hall", "wall": "wall", "layer": L_HALL},
+	"bath": {"r": [-6.4, -3.8, -4.2, -1.6], "floor": "tile", "wall": "wall_damp", "layer": L_BATH},
+	"storage": {"r": [-3.8, -1.0, -4.2, -1.6], "floor": "floor_hall", "wall": "wall", "layer": L_STOR},
+	"bed1": {"r": [-6.4, -3.4, -9.6, -5.6], "floor": "floor_wood", "wall": "wall", "layer": L_BED1},
+	"bed2": {"r": [-3.4, -1.0, -9.6, -5.6], "floor": "floor_wood", "wall": "wall", "layer": L_BED2},
 }
 
 ## Openings. axis "x": a wall running along Z at x = fixed; "z": along X at z = fixed. c is the
 ## centre along the wall. Doors: hinge "lo"/"hi" end, swing "neg"/"pos" side, open at start.
 const OPENINGS := [
-	{"kind": "front", "axis": "z", "fixed": 0.0, "c": -0.3, "w": 0.95},
-	{"kind": "door", "name": "hall", "axis": "z", "fixed": -4.6, "c": -0.3, "w": 0.9, "hinge": "lo", "swing": "neg", "open": false},
-	{"kind": "door", "name": "bath", "axis": "x", "fixed": -1.0, "c": -1.2, "w": 0.9, "hinge": "hi", "swing": "neg", "open": false},
-	{"kind": "door", "name": "dads", "axis": "z", "fixed": -6.0, "c": -2.2, "w": 0.9, "hinge": "lo", "swing": "pos", "open": false},
-	{"kind": "door", "name": "bedroom", "axis": "z", "fixed": -6.0, "c": -5.0, "w": 0.9, "hinge": "hi", "swing": "pos", "open": false},
-	{"kind": "door", "name": "dressing", "axis": "z", "fixed": -2.6, "c": -3.95, "w": 0.9, "hinge": "lo", "swing": "neg", "open": false},
-	{"kind": "door", "name": "spare", "axis": "z", "fixed": -7.4, "c": -5.0, "w": 0.9, "hinge": "lo", "swing": "neg", "open": false},
-	{"kind": "door", "name": "utility", "axis": "x", "fixed": -1.0, "c": -8.7, "w": 0.9, "hinge": "hi", "swing": "neg", "open": false},
-	{"kind": "door", "name": "kitchen", "axis": "x", "fixed": 0.4, "c": -1.5, "w": 0.9, "hinge": "hi", "swing": "pos", "open": false},
-	{"kind": "door", "name": "living", "axis": "x", "fixed": 0.4, "c": -6.0, "w": 0.9, "hinge": "lo", "swing": "pos", "open": true},
-	{"kind": "door", "name": "box", "axis": "x", "fixed": 0.4, "c": -9.0, "w": 0.9, "hinge": "hi", "swing": "pos", "open": false},
-	{"kind": "door", "name": "study", "axis": "z", "fixed": -8.0, "c": 3.8, "w": 0.9, "hinge": "lo", "swing": "neg", "open": false},
-	{"kind": "arch", "axis": "x", "fixed": -1.0, "c": -6.7, "w": 1.4},
-	{"kind": "arch", "axis": "z", "fixed": -3.0, "c": 3.4, "w": 1.2},
+	{"kind": "front", "axis": "z", "fixed": 0.0, "c": 0.1, "w": 0.95},
+	{"kind": "arch", "axis": "x", "fixed": 1.2, "c": -1.1, "w": 1.0},
+	{"kind": "arch", "axis": "z", "fixed": -2.2, "c": 0.1, "w": 1.4},
+	{"kind": "arch", "axis": "z", "fixed": -2.2, "c": 3.6, "w": 1.6},
+	{"kind": "arch", "axis": "x", "fixed": -1.0, "c": -4.9, "w": 1.2},
+	{"kind": "door", "name": "bath", "axis": "z", "fixed": -4.2, "c": -5.1, "w": 0.9, "hinge": "lo", "swing": "pos", "open": false},
+	{"kind": "door", "name": "storage", "axis": "z", "fixed": -4.2, "c": -2.4, "w": 0.9, "hinge": "hi", "swing": "pos", "open": false},
+	{"kind": "door", "name": "bed1", "axis": "z", "fixed": -5.6, "c": -4.9, "w": 0.9, "hinge": "lo", "swing": "neg", "open": false},
+	{"kind": "door", "name": "bed2", "axis": "z", "fixed": -5.6, "c": -2.2, "w": 0.9, "hinge": "hi", "swing": "neg", "open": false},
 	# Windows: sill and top heights, curtains optional.
-	{"kind": "window", "axis": "x", "fixed": -6.6, "c": -4.3, "w": 1.4, "sill": 0.9, "top": 2.05, "cur": true},
-	{"kind": "window", "axis": "z", "fixed": 0.0, "c": -5.0, "w": 0.8, "sill": 1.0, "top": 2.05, "cur": false},
-	{"kind": "window", "axis": "x", "fixed": -6.6, "c": -8.7, "w": 1.0, "sill": 1.0, "top": 2.0, "cur": true},
-	{"kind": "window", "axis": "z", "fixed": -10.0, "c": -5.0, "w": 1.0, "sill": 1.0, "top": 2.0, "cur": false},
-	{"kind": "window", "axis": "x", "fixed": -6.6, "c": -6.7, "w": 0.6, "sill": 1.0, "top": 2.0, "cur": false},
-	{"kind": "window", "axis": "z", "fixed": -10.0, "c": -0.3, "w": 0.6, "sill": 1.0, "top": 2.0, "cur": false},
-	{"kind": "window", "axis": "z", "fixed": -10.0, "c": 1.5, "w": 0.8, "sill": 1.1, "top": 2.0, "cur": false},
-	{"kind": "window", "axis": "z", "fixed": -10.0, "c": 3.8, "w": 0.9, "sill": 1.0, "top": 2.05, "cur": true},
-	{"kind": "window", "axis": "x", "fixed": 5.0, "c": -9.0, "w": 0.8, "sill": 1.1, "top": 2.0, "cur": false},
-	{"kind": "window", "axis": "x", "fixed": 5.0, "c": -5.5, "w": 1.8, "sill": 0.9, "top": 2.05, "cur": true},
-	{"kind": "window", "axis": "x", "fixed": 5.0, "c": -1.5, "w": 1.0, "sill": 0.95, "top": 2.05, "cur": false},
-	{"kind": "window", "axis": "z", "fixed": 0.0, "c": 2.7, "w": 1.0, "sill": 1.0, "top": 2.05, "cur": false},
+	{"kind": "window", "axis": "x", "fixed": 5.0, "c": -5.6, "w": 1.8, "sill": 0.9, "top": 2.05, "cur": true},
+	{"kind": "window", "axis": "x", "fixed": 5.0, "c": -8.4, "w": 1.2, "sill": 0.9, "top": 2.05, "cur": true},
+	{"kind": "window", "axis": "z", "fixed": -9.6, "c": 1.0, "w": 1.4, "sill": 0.9, "top": 2.05, "cur": true},
+	{"kind": "window", "axis": "z", "fixed": -9.6, "c": 3.4, "w": 1.4, "sill": 0.9, "top": 2.05, "cur": true},
+	{"kind": "window", "axis": "x", "fixed": 5.0, "c": -1.1, "w": 1.0, "sill": 0.95, "top": 2.05, "cur": false},
+	{"kind": "window", "axis": "z", "fixed": 0.0, "c": 3.0, "w": 1.2, "sill": 1.0, "top": 2.05, "cur": false},
+	{"kind": "window", "axis": "z", "fixed": -9.6, "c": -4.85, "w": 1.0, "sill": 1.0, "top": 2.0, "cur": true},
+	{"kind": "window", "axis": "z", "fixed": -9.6, "c": -2.2, "w": 1.0, "sill": 1.0, "top": 2.0, "cur": true},
+	{"kind": "window", "axis": "x", "fixed": -6.4, "c": -2.9, "w": 0.6, "sill": 1.5, "top": 2.05, "cur": false},
+	{"kind": "window", "axis": "z", "fixed": -1.6, "c": -2.4, "w": 0.7, "sill": 1.4, "top": 2.0, "cur": false},
+	{"kind": "window", "axis": "x", "fixed": -6.4, "c": -4.9, "w": 0.8, "sill": 1.0, "top": 2.0, "cur": false},
 ]
 
 ## Ceiling lamps: [cell, x, z, colour, energy, range, fitting]  (fitting: "bulb", "shade")
 const LAMPS := [
-	["hall_front", -0.3, -2.3, Color(1.0, 0.80, 0.55), 0.9, 4.2, "bulb"],
-	["hall_back", -0.3, -6.2, Color(1.0, 0.80, 0.55), 0.8, 4.2, "shade"],
-	["hall_back", -0.3, -9.0, Color(1.0, 0.76, 0.5), 0.6, 3.6, "bulb"],
-	["hall_w", -3.8, -6.7, Color(1.0, 0.78, 0.52), 0.8, 4.6, "shade"],
-	["bath", -2.2, -1.3, Color(0.86, 0.93, 1.0), 1.0, 3.4, "bulb"],
-	["dads", -2.2, -4.3, Color(1.0, 0.74, 0.5), 0.8, 3.6, "bulb"],
-	["bedroom", -5.0, -4.3, Color(1.0, 0.78, 0.55), 0.9, 4.2, "shade"],
-	["dressing", -5.0, -1.3, Color(1.0, 0.8, 0.56), 0.7, 3.3, "bulb"],
-	["spare", -5.0, -8.7, Color(1.0, 0.78, 0.55), 0.8, 3.8, "shade"],
-	["utility", -2.2, -8.7, Color(0.9, 0.95, 1.0), 0.7, 3.2, "bulb"],
-	["kitchen", 2.7, -1.5, Color(0.92, 0.97, 0.88), 0.95, 5.0, "bulb"],
-	["living", 2.7, -5.5, Color(1.0, 0.8, 0.58), 1.0, 5.6, "shade"],
-	["box", 1.5, -9.0, Color(1.0, 0.74, 0.5), 0.55, 3.0, "bulb"],
-	["study", 3.8, -9.0, Color(1.0, 0.78, 0.55), 0.6, 3.2, "bulb"],
+	["entry", 0.1, -1.1, Color(1.0, 0.80, 0.55), 0.9, 4.0, "bulb"],
+	["kitchen", 3.0, -1.1, Color(0.92, 0.97, 0.88), 0.95, 4.6, "bulb"],
+	["living", 1.2, -4.8, Color(1.0, 0.8, 0.58), 1.0, 6.0, "shade"],
+	["living", 3.6, -8.2, Color(1.0, 0.76, 0.52), 0.7, 5.0, "bulb"],
+	["hall", -2.2, -4.9, Color(1.0, 0.78, 0.52), 0.8, 4.4, "shade"],
+	["hall", -5.2, -4.9, Color(1.0, 0.76, 0.5), 0.6, 3.6, "bulb"],
+	["bath", -5.0, -2.9, Color(0.86, 0.93, 1.0), 1.0, 3.6, "bulb"],
+	["storage", -2.4, -2.9, Color(1.0, 0.74, 0.5), 0.8, 3.8, "bulb"],
+	["bed1", -4.85, -7.6, Color(1.0, 0.78, 0.55), 0.9, 4.2, "shade"],
+	["bed2", -2.2, -7.6, Color(1.0, 0.78, 0.55), 0.8, 4.0, "shade"],
 ]
 
 ## Light switches: [cell, x, z, facing (direction the plate looks, into the room)]
 const SWITCHES := [
-	["hall_front", 0.33, -0.55, Vector3(-1, 0, 0)],
-	["hall_back", 0.33, -5.2, Vector3(-1, 0, 0)],
-	["hall_w", -2.0, -7.33, Vector3(0, 0, 1)],
-	["bath", -1.07, -0.45, Vector3(-1, 0, 0)],
-	["dads", -1.5, -5.93, Vector3(0, 0, 1)],
-	["bedroom", -4.0, -5.93, Vector3(0, 0, 1)],
-	["dressing", -5.2, -2.53, Vector3(0, 0, 1)],
-	["spare", -4.0, -7.47, Vector3(0, 0, -1)],
-	["utility", -1.07, -9.3, Vector3(-1, 0, 0)],
-	["kitchen", 0.47, -2.1, Vector3(1, 0, 0)],
-	["living", 0.47, -5.3, Vector3(1, 0, 0)],
-	["box", 0.47, -9.5, Vector3(1, 0, 0)],
-	["study", 3.1, -8.07, Vector3(0, 0, -1)],
+	["entry", -0.93, -0.55, Vector3(1, 0, 0)],
+	["kitchen", 1.27, -1.9, Vector3(1, 0, 0)],
+	["living", -0.93, -3.4, Vector3(1, 0, 0)],
+	["hall", -3.6, -5.53, Vector3(0, 0, 1)],
+	["bath", -4.3, -4.13, Vector3(0, 0, 1)],
+	["storage", -1.6, -4.13, Vector3(0, 0, 1)],
+	["bed1", -3.9, -5.67, Vector3(0, 0, -1)],
+	["bed2", -1.5, -5.67, Vector3(0, 0, -1)],
 ]
 
 var doors := {}                        ## name -> Door
 var door_info := {}                    ## name -> {center, normal (toward the swing side), w}
 var lamps := {}                        ## cell -> Array of {light, bulb}
 var front_door: Interactable
+var use_points := {}                   ## id -> Interactable (props the game logic cares about)
+var pois := {}                         ## id -> floor position, for reachability tests
+var swarms: Array = []                 ## Flies nodes
 var phone: Interactable
 var _panes: Array[MeshInstance3D] = []
 var _lines := {}                       ## wall line key -> side records (wall generation)
+var _ext := {}                         ## cell -> {w,e,n,s: true} for sides with outside behind them
 var viewer: Node3D                     ## the player: only rooms they can see through open doors are drawn
 var _links: Array = []                 ## [cell_a, cell_b, door name or ""] for every way through a wall
 var _cull_cell := ""
@@ -148,14 +130,25 @@ func rect_of(cell: String) -> Array:
 	return CELLS[cell]["r"]
 
 
-## Interior bounds [x0, x1, z0, z1] of a cell: the cell minus half the walls around it.
+## Interior bounds [x0, x1, z0, z1] of a cell: the cell minus half the walls around it
+## (outside walls are thicker; a side counts as outside if any part of it has no room behind).
 func ib(cell: String) -> Array:
 	var r: Array = CELLS[cell]["r"]
+	var e: Dictionary = _ext.get(cell, {})
 	return [
-		r[0] + (T_EXT if is_equal_approx(r[0], X_W) else T_IN) * 0.5,
-		r[1] - (T_EXT if is_equal_approx(r[1], X_E) else T_IN) * 0.5,
-		r[2] + (T_EXT if is_equal_approx(r[2], Z_N) else T_IN) * 0.5,
-		r[3] - (T_EXT if is_equal_approx(r[3], Z_S) else T_IN) * 0.5]
+		r[0] + (T_EXT if e.get("w", false) else T_IN) * 0.5,
+		r[1] - (T_EXT if e.get("e", false) else T_IN) * 0.5,
+		r[2] + (T_EXT if e.get("n", false) else T_IN) * 0.5,
+		r[3] - (T_EXT if e.get("s", false) else T_IN) * 0.5]
+
+
+## The whole building's bounds [x0, x1, z0, z1].
+func footprint() -> Array:
+	var b := [INF, -INF, INF, -INF]
+	for name in CELLS:
+		var r: Array = CELLS[name]["r"]
+		b = [minf(b[0], r[0]), maxf(b[1], r[1]), minf(b[2], r[2]), maxf(b[3], r[3])]
+	return b
 
 
 func cell_at(p: Vector3) -> String:
@@ -187,12 +180,13 @@ func _floors_and_ceilings() -> void:
 
 
 func _collision_floor() -> void:
+	var f := footprint()
 	for y in [-0.2, H + 0.2]:
 		var shape := CollisionShape3D.new()
 		var bs := BoxShape3D.new()
-		bs.size = Vector3(12.5, 0.4, 11.0)
+		bs.size = Vector3(f[1] - f[0] + 1.0, 0.4, f[3] - f[2] + 1.0)
 		shape.shape = bs
-		shape.position = Vector3(-0.8, y, -5.0)
+		shape.position = Vector3((f[0] + f[1]) * 0.5, y, (f[2] + f[3]) * 0.5)
 		_body.add_child(shape)
 
 
@@ -243,6 +237,16 @@ func _walls() -> void:
 				if o["axis"] == line["axis"] and is_equal_approx(o["fixed"], line["fixed"]) and o["c"] > b0 and o["c"] < b1:
 					ops.append(o)
 			var t := T_EXT if (neg == "" or pos == "") else T_IN
+			if neg == "" or pos == "":
+				var c := pos if neg == "" else neg
+				var side_name := ""
+				if line["axis"] == "x":
+					side_name = "w" if neg == "" else "e"
+				else:
+					side_name = "n" if neg == "" else "s"
+				if not _ext.has(c):
+					_ext[c] = {}
+				_ext[c][side_name] = true
 			_wall_run(line["axis"], line["fixed"], b0, b1, t, ops, neg, pos)
 
 
@@ -465,8 +469,7 @@ func _make_front(o: Dictionary, axis: String, fixed: float, t: float, neg: Strin
 	box(_wp(axis, fixed, c - 0.18, 1.62, inward * 0.032), Vector3(0.1, 0.012, 0.012), ["brass", lay], {}, false)
 	box(_wp(axis, fixed, c - 0.43, 1.62, inward * 0.032), Vector3(0.04, 0.05, 0.02), ["brass", lay], {}, false)
 	box(_wp(axis, fixed, c, DOOR_H * 0.5, 0.0), Vector3(w, DOOR_H, 0.08), [], {}, true)    # collision only
-	front_door = _interactable("Front door", Vector3(w, DOOR_H, 0.5), _wp(axis, fixed, c, DOOR_H * 0.5, inward * 0.2))
-	front_door.interacted.connect(func() -> void: said.emit("I'm not going out today."))
+	front_door = use_point("front_door", "Front door", Vector3(w, DOOR_H, 0.5), _wp(axis, fixed, c, DOOR_H * 0.5, inward * 0.2))
 
 
 # --- windows -----------------------------------------------------------------
@@ -640,6 +643,33 @@ func interactable(label: String, size: Vector3, pos: Vector3) -> Interactable:
 	return _interactable(label, size, pos)
 
 
+## A prop the game logic reacts to: using it emits `used(id)`. Can be switched off/on and relabelled.
+func use_point(id: String, label: String, size: Vector3, pos: Vector3) -> Interactable:
+	var it := _interactable(label, size, pos)
+	it.set_meta("id", id)
+	it.interacted.connect(func() -> void: used.emit(id))
+	use_points[id] = it
+	pois[id] = Vector3(pos.x, 0.0, pos.z)
+	return it
+
+
+func set_use(id: String, enabled: bool, label := "") -> void:
+	if not use_points.has(id):
+		return
+	var it: Interactable = use_points[id]
+	it.collision_layer = 2 if enabled else 0
+	if label != "":
+		it.prompt = label
+
+
+## A fly swarm over something rotten.
+func add_flies(cell: String, pos: Vector3, count := 14, radius := 0.28) -> Flies:
+	var f := Flies.make(self, layer_of(cell), pos, count, radius)
+	swarms.append(f)
+	cull_items.append(f.get_meta("mesh"))
+	return f
+
+
 ## A furniture box in a room's layer.
 func prop(cell: String, center: Vector3, size: Vector3, mat: String, yaw := 0.0, collide := true) -> void:
 	box(center, size, [mat, layer_of(cell)], {}, collide, yaw)
@@ -659,7 +689,7 @@ func blob_shadow(cell: String, center: Vector3, w: float, d: float) -> void:
 # --- for the world, look-dev and tests -------------------------------------------------
 
 func spawn_point() -> Vector3:
-	return Vector3(-0.3, 0.05, -0.75)
+	return Vector3(0.1, 0.05, -0.75)
 
 
 func spawn_yaw() -> float:
@@ -676,22 +706,18 @@ func _spot(pos: Vector3, target: Vector3) -> Array:
 ## Named viewpoints for look-dev and tests: name -> [position, yaw, pitch].
 func debug_spots() -> Dictionary:
 	return {
-		"door": _spot(Vector3(-0.3, 0.05, -0.75), Vector3(-0.3, 1.5, -4.6)),
-		"hall": _spot(Vector3(-0.3, 0.05, -5.2), Vector3(-0.3, 1.2, -10.0)),
-		"bathdoor": _spot(Vector3(-0.3, 0.05, -2.2), Vector3(-1.0, 1.1, -1.2)),
-		"phone": _spot(Vector3(-0.3, 0.05, -8.3), Vector3(-0.3, 0.9, -10.0)),
-		"end": _spot(Vector3(-0.3, 0.05, -8.9), Vector3(-0.3, 1.4, -0.0)),
-		"hallw": _spot(Vector3(-1.7, 0.05, -6.7), Vector3(-6.6, 1.3, -6.7)),
-		"bedroom": _spot(Vector3(-3.9, 0.05, -3.3), Vector3(-5.3, 0.6, -3.9)),
-		"dressing": _spot(Vector3(-4.5, 0.05, -1.8), Vector3(-5.8, 1.0, -0.4)),
-		"bath": _spot(Vector3(-1.5, 0.05, -0.45), Vector3(-3.0, 0.7, -2.0)),
-		"dads": _spot(Vector3(-1.5, 0.05, -5.5), Vector3(-3.0, 0.7, -3.4)),
-		"spare": _spot(Vector3(-5.0, 0.05, -7.85), Vector3(-5.8, 0.6, -9.4)),
-		"utility": _spot(Vector3(-1.5, 0.05, -7.9), Vector3(-2.6, 0.8, -9.6)),
-		"kitchen": _spot(Vector3(1.2, 0.05, -2.5), Vector3(3.4, 0.9, -0.4)),
-		"living": _spot(Vector3(1.4, 0.05, -7.0), Vector3(3.2, 0.6, -4.0)),
-		"box": _spot(Vector3(1.2, 0.05, -9.0), Vector3(2.2, 0.9, -9.6)),
-		"study": _spot(Vector3(3.9, 0.05, -8.5), Vector3(3.0, 0.8, -9.6)),
+		"door": _spot(Vector3(0.1, 0.05, -0.75), Vector3(0.1, 1.3, -5.0)),
+		"living": _spot(Vector3(0.1, 0.05, -2.9), Vector3(2.5, 0.7, -7.0)),
+		"dining": _spot(Vector3(1.8, 0.05, -4.0), Vector3(3.9, 0.8, -5.6)),
+		"tv": _spot(Vector3(3.6, 0.05, -3.7), Vector3(1.0, 0.6, -9.0)),
+		"kitchen": _spot(Vector3(2.2, 0.05, -1.0), Vector3(4.6, 0.5, -1.9)),
+		"trash": _spot(Vector3(3.5, 0.05, -1.0), Vector3(4.7, 0.3, -1.9)),
+		"hall": _spot(Vector3(-1.3, 0.05, -4.9), Vector3(-6.0, 1.0, -4.9)),
+		"phone": _spot(Vector3(-4.6, 0.05, -4.9), Vector3(-6.0, 0.8, -4.9)),
+		"bed1": _spot(Vector3(-4.5, 0.05, -6.2), Vector3(-4.85, 0.6, -8.4)),
+		"bed2": _spot(Vector3(-2.0, 0.05, -6.3), Vector3(-1.6, 0.6, -8.4)),
+		"bath": _spot(Vector3(-5.1, 0.05, -3.7), Vector3(-5.4, 0.8, -2.0)),
+		"storage": _spot(Vector3(-2.4, 0.05, -3.6), Vector3(-2.4, 0.6, -1.9)),
 	}
 
 

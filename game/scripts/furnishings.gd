@@ -4,19 +4,14 @@ class_name Furnishings
 ## prop's front looks along local -Z; `yaw` turns it (yaw 0 faces north, PI/2 faces west).
 
 static func furnish(a: Apartment) -> void:
-	_hall_front(a)
-	_hall_back(a)
-	_hall_w(a)
-	_bath(a)
-	_dads(a)
-	_bedroom(a)
-	_dressing(a)
-	_spare(a)
-	_utility(a)
+	_entry(a)
 	_kitchen(a)
 	_living(a)
-	_box_room(a)
-	_study(a)
+	_hall(a)
+	_bath(a)
+	_storage(a)
+	_bed1(a)
+	_bed2(a)
 
 
 # --- generic pieces --------------------------------------------------------------------
@@ -155,251 +150,240 @@ static func _litter(a: Apartment, cell: String, c: Vector3, n: int, spread: floa
 		_p(a, cell, p + Vector3(0, sz.y * 0.5, 0), sz, m, rng.randf_range(0.0, 3.1), false)
 
 
-# --- halls -----------------------------------------------------------------------------
-
-static func _hall_front(a: Apartment) -> void:
-	var c := "hall_front"
-	_p(a, c, Vector3(-0.78, 0.17, -3.1), Vector3(0.3, 0.34, 0.8), "dark_wood")                      # shoe rack
-	for i in 4:
-		_p(a, c, Vector3(-0.78, 0.4, -3.35 + float(i) * 0.2), Vector3(0.22, 0.09, 0.13), "leather", float(i) * 0.4, false)
-	_p(a, c, Vector3(0.29, 1.55, -3.4), Vector3(0.05, 0.04, 0.7), "brass", 0.0, false)             # hook rail
-	_p(a, c, Vector3(0.24, 1.0, -3.65), Vector3(0.1, 1.15, 0.28), "cloth_grey", 0.0, false)         # coats
-	_p(a, c, Vector3(0.24, 0.95, -3.25), Vector3(0.1, 1.05, 0.26), "cloth_blue", 0.0, false)
-	_p(a, c, Vector3(-0.3, 0.007, -0.45), Vector3(0.7, 0.014, 0.45), "cloth_grey", 0.0, false)       # doormat
-	for i in 6:                                                                                      # mail on the floor
-		_p(a, c, Vector3(-0.45 + float(i) * 0.09, 0.012, -0.75 + sin(float(i)) * 0.1), Vector3(0.2, 0.004, 0.12), "paper", float(i) * 0.7, false)
-	_picture(a, c, Vector3(-0.94, 1.55, -3.9), Vector3(1, 0, 0), 0.5, 0.65, "glass")                 # a dark mirror
-	a.stain(c, Vector3(-0.3, 2.49, -3.0), Vector3(0, -1, 0), 1.0)
-	a.stain(c, Vector3(0.335, 0.9, -2.0), Vector3(-1, 0, 0), 0.7, 1.4)
+static func _bottles(a: Apartment, cell: String, c: Vector3, n: int, spread: Vector2, seed_i: int, standing_ratio := 0.5) -> void:
+	# Empty beer bottles: some standing, some on their side.
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 900 + seed_i
+	var layer := a.layer_of(cell)
+	for i in n:
+		var p := c + Vector3(rng.randf_range(-spread.x, spread.x), 0.0, rng.randf_range(-spread.y, spread.y))
+		if rng.randf() < standing_ratio:
+			a.cyl(p + Vector3(0, 0.09, 0), 0.033, 0.18, "beer", layer, -1.0, 8)
+			a.cyl(p + Vector3(0, 0.22, 0), 0.012, 0.09, "beer", layer, 0.017, 6)
+		else:
+			_p(a, cell, p + Vector3(0, 0.035, 0), Vector3(0.07, 0.07, 0.24), "beer", rng.randf_range(0.0, 3.14), false)
 
 
-static func _hall_back(a: Apartment) -> void:
-	var c := "hall_back"
-	_p(a, c, Vector3(-0.3, 0.37, -9.65), Vector3(0.6, 0.74, 0.4), "dark_wood")                        # phone table
-	_p(a, c, Vector3(-0.3, 0.77, -9.65), Vector3(0.26, 0.07, 0.2), "black", 0.0, false)             # landline body
-	_p(a, c, Vector3(-0.3, 0.83, -9.65), Vector3(0.22, 0.04, 0.07), "black", 0.0, false)             # handset
-	_p(a, c, Vector3(-0.3, 0.82, -9.62), Vector3(0.1, 0.012, 0.1), "paper", 0.0, false)
-	_picture(a, c, Vector3(-0.94, 1.5, -6.0), Vector3(1, 0, 0), 0.4, 0.5, "cloth_blue")
-	_picture(a, c, Vector3(-0.94, 1.5, -8.0), Vector3(1, 0, 0), 0.32, 0.42, "cloth_red")
-	_picture(a, c, Vector3(0.34, 1.5, -7.0), Vector3(-1, 0, 0), 0.5, 0.36, "paper")
-	_plant(a, c, Vector3(0.0, 0.0, -9.35))
-	a.stain(c, Vector3(-0.3, 2.49, -7.8), Vector3(0, -1, 0), 1.3)
-	a.stain(c, Vector3(-0.94, 0.5, -5.5), Vector3(1, 0, 0), 0.9, 1.2)
-
-
-static func _hall_w(a: Apartment) -> void:
-	var c := "hall_w"
-	_rug(a, c, Vector3(-3.8, 0, -6.7), 3.6, 0.8, "cloth_red")
-	_p(a, c, Vector3(-6.2, 0.4, -6.75), Vector3(0.3, 0.8, 0.6), "dark_wood")                          # small chest by the window
-	_picture(a, c, Vector3(-2.2, 1.5, -6.06), Vector3(0, 0, 1), 0.5, 0.35, "cloth_blue")
-	_picture(a, c, Vector3(-4.6, 1.5, -6.06), Vector3(0, 0, 1), 0.36, 0.5, "paper")
-	_picture(a, c, Vector3(-3.4, 1.5, -7.34), Vector3(0, 0, -1), 0.6, 0.4, "cloth_red")
-	a.stain(c, Vector3(-5.2, 2.49, -6.7), Vector3(0, -1, 0), 1.1)
+static func _rotten_plate(a: Apartment, cell: String, c: Vector3, seed_i: int) -> void:
+	# A plate of food that has been there for days: grey-green mould, black patches.
+	var layer := a.layer_of(cell)
+	a.cyl(c + Vector3(0, 0.012, 0), 0.115, 0.024, "white", layer, -1.0, 14)
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 400 + seed_i
+	for i in 5:
+		var o := Vector3(rng.randf_range(-0.06, 0.06), 0.03 + rng.randf() * 0.02, rng.randf_range(-0.06, 0.06))
+		a.cyl(c + o, rng.randf_range(0.025, 0.045), 0.03, ["mold", "rot", "food", "mold", "rot"][i], layer, -1.0, 8)
+	_p(a, cell, c + Vector3(0.14, 0.02, -0.04), Vector3(0.015, 0.012, 0.16), "metal", 0.5, false)     # fork
 
 
 # --- rooms ---------------------------------------------------------------------------------
 
-static func _bath(a: Apartment) -> void:
-	var c := "bath"
-	var b := a.ib(c)                                     # x[-3.34,-1.06] z[-2.54,-0.11]
-	_p(a, c, Vector3(-2.49, 0.28, -2.165), Vector3(1.7, 0.56, 0.75), "white")                       # tub
-	_p(a, c, Vector3(-2.49, 0.57, -2.165), Vector3(1.55, 0.02, 0.6), "chrome", 0.0, false)
-	_p(a, c, Vector3(-1.7, 0.75, -2.45), Vector3(0.04, 0.04, 0.12), "chrome", 0.0, false)           # taps
-	_p(a, c, Vector3(-2.49, 1.2, -1.8), Vector3(1.55, 1.7, 0.02), "sheet", 0.0, false)              # shower curtain, drawn
-	a.cyl(Vector3(-2.49, 2.05, -1.8), 0.012, 1.6, "chrome", a.layer_of(c), -1.0, 6)
-	_p(a, c, Vector3(-2.2, 0.2, -0.42), Vector3(0.36, 0.4, 0.5), "white")                            # toilet
-	_p(a, c, Vector3(-2.2, 0.62, -0.2), Vector3(0.4, 0.44, 0.18), "white", 0.0, false)
-	_p(a, c, Vector3(-2.2, 0.43, -0.4), Vector3(0.38, 0.03, 0.44), "white", 0.0, false)
-	_p(a, c, Vector3(-3.1, 0.82, -1.2), Vector3(0.4, 0.12, 0.5), "white")                            # basin
-	_p(a, c, Vector3(-3.15, 0.4, -1.2), Vector3(0.12, 0.8, 0.12), "white", 0.0, false)
-	_p(a, c, Vector3(-3.3, 1.5, -1.2), Vector3(0.03, 0.75, 0.52), "dark_wood", 0.0, false)          # mirror frame
-	_p(a, c, Vector3(-3.285, 1.5, -1.2), Vector3(0.03, 0.67, 0.44), "glass", 0.0, false)
-	_p(a, c, Vector3(-1.9, 0.012, -1.25), Vector3(0.5, 0.02, 0.8), "cloth_blue", 0.0, false)        # bath mat
-	_p(a, c, Vector3(-3.3, 1.2, -0.5), Vector3(0.04, 0.5, 0.3), "cloth_grey", 0.0, false)           # towel
-	a.stain(c, Vector3(-2.4, 2.49, -2.0), Vector3(0, -1, 0), 1.5)
-	a.stain(c, Vector3(-2.8, 1.8, -2.53), Vector3(0, 0, 1), 1.0, 1.4)
-	a.stain(c, Vector3(-1.4, 0.8, -2.53), Vector3(0, 0, 1), 0.8, 1.6)
-	a.blob_shadow(c, Vector3(-2.49, 0, -2.165), 2.0, 1.1)
-
-
-static func _dads(a: Apartment) -> void:
-	var c := "dads"                                       # x[-3.34,-1.06] z[-5.94,-2.66]
-	_boxes(a, c, Vector3(-3.0, 0, -5.55), 3, 2, Vector3(0.42, 0.32, 0.36))
-	_boxes(a, c, Vector3(-3.05, 0, -4.7), 2, 1, Vector3(0.5, 0.36, 0.4))
-	_boxes(a, c, Vector3(-3.0, 0, -3.1), 2, 2, Vector3(0.4, 0.3, 0.34))
-	_p(a, c, Vector3(-1.5, 0.4, -3.55), Vector3(0.9, 0.8, 0.85), "leather", PI / 2.0 + 0.2)            # his armchair
-	_p(a, c, Vector3(-1.38, 0.78, -3.58), Vector3(0.25, 0.5, 0.85), "leather", PI / 2.0 + 0.2, false)
-	a.blob_shadow(c, Vector3(-1.5, 0, -3.55), 1.3, 1.3)
-	_table(a, c, Vector3(-1.42, 0, -4.95), 0.5, 0.5, 0.6, "dark_wood")
-	_p(a, c, Vector3(-1.42, 0.7, -4.95), Vector3(0.3, 0.18, 0.12), "black", 0.3, false)              # his radio
-	_floor_lamp(a, c, Vector3(-1.3, 0, -2.9), Color(1.0, 0.7, 0.45), 0.3)
-	_picture(a, c, Vector3(-1.06, 1.55, -4.2), Vector3(-1, 0, 0), 0.5, 0.4, "paper")                 # family photo
-	_picture(a, c, Vector3(-3.34, 1.5, -4.2), Vector3(1, 0, 0), 0.4, 0.5, "cloth_blue")
-	_litter(a, c, Vector3(-2.2, 0, -4.3), 4, 0.5, 1)
-	a.stain(c, Vector3(-3.0, 2.49, -5.4), Vector3(0, -1, 0), 1.2)
-
-
-static func _bedroom(a: Apartment) -> void:
-	var c := "bedroom"                                    # x[-6.49,-3.46] z[-5.94,-2.66]
-	_bed(a, c, Vector3(-5.44, 0, -3.9), -PI / 2.0, 1.6, 2.1)                                           # head to the west wall
-	_p(a, c, Vector3(-6.22, 0.25, -5.0), Vector3(0.42, 0.5, 0.42), "dark_wood")
-	_p(a, c, Vector3(-6.22, 0.25, -2.88), Vector3(0.4, 0.5, 0.4), "dark_wood")
-	a.cyl(Vector3(-6.22, 0.62, -2.88), 0.05, 0.2, "brass", a.layer_of(c), 0.03, 8)                      # bedside lamp
-	a.cyl(Vector3(-6.22, 0.82, -2.88), 0.1, 0.16, "lampshade", a.layer_of(c), 0.07, 10)
-	_p(a, c, Vector3(-6.22, 0.55, -5.0), Vector3(0.14, 0.1, 0.1), "black", 0.4, false)                  # alarm clock
-	_p(a, c, Vector3(-6.2, 0.53, -4.82), Vector3(0.1, 0.1, 0.1), "paper", 0.0, false)
-	_p(a, c, Vector3(-3.76, 1.0, -5.3), Vector3(0.6, 2.0, 1.2), "dark_wood")                            # wardrobe
-	_p(a, c, Vector3(-4.07, 1.0, -5.0), Vector3(0.02, 0.5, 0.02), "brass", 0.0, false)
-	_p(a, c, Vector3(-4.07, 1.0, -5.6), Vector3(0.02, 0.5, 0.02), "brass", 0.0, false)
-	_rug(a, c, Vector3(-5.0, 0, -3.9), 2.2, 1.6, "cloth_blue")
-	_litter(a, c, Vector3(-4.1, 0, -3.9), 7, 0.5, 2)
-	_picture(a, c, Vector3(-6.49, 1.65, -3.9), Vector3(1, 0, 0), 0.7, 0.5, "cloth_grey")             # picture above the bed
-	a.stain(c, Vector3(-4.7, 2.49, -3.5), Vector3(0, -1, 0), 1.3)
-	a.stain(c, Vector3(-3.46, 2.0, -3.2), Vector3(-1, 0, 0), 0.9, 1.0)
-
-
-static func _dressing(a: Apartment) -> void:
-	var c := "dressing"                                   # x[-6.49,-3.46] z[-2.54,-0.11]
-	_p(a, c, Vector3(-6.25, 1.05, -1.5), Vector3(0.45, 2.1, 1.7), "dark_wood")                       # shelves
-	for i in 5:
-		_p(a, c, Vector3(-6.0, 0.35 + float(i) * 0.4, -1.5), Vector3(0.02, 0.02, 1.6), "paper", 0.0, false)
-	_p(a, c, Vector3(-3.55, 1.72, -1.2), Vector3(0.03, 0.03, 1.8), "metal", 0.0, false)               # clothes rail
-	for i in 7:
-		var mat: String = ["cloth_grey", "cloth_blue", "cloth_red", "cloth_grey"][i % 4]
-		_p(a, c, Vector3(-3.55, 1.2, -0.45 - float(i) * 0.22), Vector3(0.05, 1.0, 0.22), mat, 0.0, false)
-	_p(a, c, Vector3(-4.8, 0.25, -0.45), Vector3(0.7, 0.5, 0.4), "leather", 0.1)                      # suitcase
-	_picture(a, c, Vector3(-4.0, 1.55, -0.11), Vector3(0, 0, -1), 0.5, 1.0, "glass")                # full-length mirror
-	_litter(a, c, Vector3(-5.0, 0, -1.6), 5, 0.6, 3)
-	a.stain(c, Vector3(-5.0, 2.49, -1.4), Vector3(0, -1, 0), 1.0)
-
-
-static func _spare(a: Apartment) -> void:
-	var c := "spare"                                      # x[-6.49,-3.46] z[-9.89,-7.46]
-	_bed(a, c, Vector3(-6.0, 0, -8.9), 0.0, 0.95, 2.0, "sheet", "cloth_blue")                         # Jack's old bed, head to the north
-	_table(a, c, Vector3(-3.78, 0, -8.8), 0.6, 1.4, 0.74, "dark_wood", 0.0)                           # desk
-	_chair(a, c, Vector3(-4.5, 0, -8.8), PI / 2.0)
-	_p(a, c, Vector3(-3.8, 0.9, -9.05), Vector3(0.35, 0.3, 0.3), "black", 0.0, false)               # old monitor
-	_p(a, c, Vector3(-3.8, 0.78, -8.5), Vector3(0.3, 0.02, 0.2), "paper", 0.0, false)
-	_p(a, c, Vector3(-5.0, 1.0, -9.89), Vector3(0.9, 0.02, 0.28), "dark_wood", 0.0, false)            # shelf with trophies
+static func _entry(a: Apartment) -> void:
+	var c := "entry"                                      # x[-0.94,1.14] z[-2.14,-0.11]
+	_p(a, c, Vector3(-0.78, 0.17, -1.7), Vector3(0.3, 0.34, 0.8), "dark_wood")                       # shoe rack
 	for i in 4:
-		a.cyl(Vector3(-5.3 + float(i) * 0.22, 1.1, -9.8), 0.045, 0.15, "brass", a.layer_of(c), 0.03, 8)
-	_picture(a, c, Vector3(-3.46, 1.6, -9.2), Vector3(-1, 0, 0), 0.5, 0.7, "cloth_red")              # poster
-	_boxes(a, c, Vector3(-6.3, 0, -7.7), 2, 1, Vector3(0.45, 0.3, 0.4))
-	_litter(a, c, Vector3(-4.3, 0, -8.1), 5, 0.6, 4)
-	a.stain(c, Vector3(-4.8, 2.49, -8.8), Vector3(0, -1, 0), 1.4)
-
-
-static func _utility(a: Apartment) -> void:
-	var c := "utility"                                    # x[-3.34,-1.06] z[-9.89,-7.46]
-	_p(a, c, Vector3(-3.0, 0.43, -9.55), Vector3(0.6, 0.86, 0.6), "white")                           # washing machine
-	a.cyl(Vector3(-3.0, 0.5, -9.24), 0.17, 0.04, "black", a.layer_of(c), -1.0, 16)
-	_p(a, c, Vector3(-1.5, 0.75, -9.6), Vector3(0.45, 1.5, 0.4), "white")                            # boiler
-	a.cyl(Vector3(-1.5, 1.7, -9.6), 0.06, 0.4, "chrome", a.layer_of(c), -1.0, 8)
-	a.cyl(Vector3(-1.5, 1.2, -9.35), 0.025, 2.4, "chrome", a.layer_of(c), -1.0, 6)
-	_p(a, c, Vector3(-3.3, 1.2, -8.3), Vector3(0.03, 0.04, 1.0), "dark_wood", 0.0, false)             # shelf
-	_p(a, c, Vector3(-3.25, 1.2, -8.3), Vector3(0.16, 0.04, 1.0), "dark_wood", 0.0, false)
-	for i in 4:
-		_p(a, c, Vector3(-3.25, 1.3, -8.0 - float(i) * 0.2), Vector3(0.1, 0.2, 0.1), ["white", "green_glass", "cloth_blue", "cloth_red"][i], 0.0, false)
-	a.cyl(Vector3(-1.4, 0.18, -7.9), 0.17, 0.36, "cloth_blue", a.layer_of(c), 0.2)                    # mop bucket
-	_p(a, c, Vector3(-1.2, 0.8, -8.4), Vector3(0.03, 1.6, 0.03), "dark_wood", 0.0, false)             # mop
-	a.stain(c, Vector3(-2.2, 2.49, -8.7), Vector3(0, -1, 0), 1.5)
-	a.stain(c, Vector3(-2.0, 0.6, -9.88), Vector3(0, 0, 1), 1.0, 1.6)
-	_litter(a, c, Vector3(-2.3, 0, -8.5), 3, 0.5, 5)
+		_p(a, c, Vector3(-0.78, 0.4, -2.0 + float(i) * 0.2), Vector3(0.22, 0.09, 0.13), "leather", float(i) * 0.4, false)
+	_p(a, c, Vector3(-0.9, 1.55, -1.1), Vector3(0.04, 0.04, 0.5), "brass", 0.0, false)               # hooks and coats
+	_p(a, c, Vector3(-0.84, 1.0, -1.1), Vector3(0.1, 1.1, 0.3), "cloth_grey", 0.0, false)
+	_p(a, c, Vector3(0.1, 0.007, -0.32), Vector3(0.8, 0.014, 0.45), "cloth_grey", 0.0, false)        # doormat
+	for i in 7:                                                                                     # the mail, piled up by the door
+		_p(a, c, Vector3(0.55 + float(i % 3) * 0.08, 0.012 + float(i) * 0.006, -0.55 + sin(float(i)) * 0.07), Vector3(0.22, 0.004, 0.14), "paper", float(i) * 0.7, false)
+	a.use_point("mail", "Read the mail", Vector3(0.7, 0.4, 0.7), Vector3(0.6, 0.2, -0.55))
+	_picture(a, c, Vector3(-0.94, 1.5, -1.7), Vector3(1, 0, 0), 0.5, 0.65, "glass")                  # a dark mirror
+	a.stain(c, Vector3(0.1, 2.49, -1.4), Vector3(0, -1, 0), 1.0)
+	a.stain(c, Vector3(1.14, 0.9, -0.4), Vector3(-1, 0, 0), 0.7, 1.4)
+	_litter(a, c, Vector3(0.2, 0, -1.4), 3, 0.4, 1)
 
 
 static func _kitchen(a: Apartment) -> void:
-	var c := "kitchen"                                    # x[0.46,4.89] z[-2.89,-0.11]
+	var c := "kitchen"                                    # x[1.26,4.89] z[-2.14,-0.11]
 	var layer := a.layer_of(c)
 	_p(a, c, Vector3(4.55, 0.9, -0.45), Vector3(0.65, 1.8, 0.65), "white")                           # fridge
 	_p(a, c, Vector3(4.2, 1.1, -0.78), Vector3(0.02, 0.5, 0.03), "chrome", 0.0, false)
-	_p(a, c, Vector3(1.55, 0.44, -0.41), Vector3(1.3, 0.88, 0.6), "dark_wood")                       # base unit
-	_p(a, c, Vector3(2.7, 0.44, -0.41), Vector3(1.0, 0.88, 0.6), "dark_wood")                        # sink unit
-	_p(a, c, Vector3(3.7, 0.44, -0.41), Vector3(0.9, 0.88, 0.6), "dark_wood")
-	for x in [0.94, 1.55, 2.7, 3.7]:
-		_p(a, c, Vector3(x, 0.9, -0.1 - 0.62), Vector3(0.62 if x != 0.94 else 0.02, 0.02, 0.02), "chrome", 0.0, false)
-	_p(a, c, Vector3(1.55, 0.9, -0.41), Vector3(1.3, 0.04, 0.62), "metal", 0.0, false)               # worktops
-	_p(a, c, Vector3(2.7, 0.9, -0.41), Vector3(1.0, 0.04, 0.62), "metal", 0.0, false)
-	_p(a, c, Vector3(3.7, 0.9, -0.41), Vector3(0.9, 0.04, 0.62), "metal", 0.0, false)
-	_p(a, c, Vector3(2.7, 0.91, -0.41), Vector3(0.6, 0.02, 0.4), "chrome", 0.0, false)               # sink basin
+	_p(a, c, Vector3(2.0, 0.44, -0.41), Vector3(1.2, 0.88, 0.6), "dark_wood")                        # stove unit
+	_p(a, c, Vector3(3.1, 0.44, -0.41), Vector3(1.0, 0.88, 0.6), "dark_wood")                        # sink unit
+	_p(a, c, Vector3(3.9, 0.44, -0.41), Vector3(0.6, 0.88, 0.6), "dark_wood")
+	for x in [2.0, 3.1, 3.9]:
+		_p(a, c, Vector3(x, 0.9, -0.41), Vector3(1.2 if x == 2.0 else (1.0 if x == 3.1 else 0.6), 0.04, 0.62), "metal", 0.0, false)
+		_p(a, c, Vector3(x, 0.7, -0.72), Vector3(0.5, 0.02, 0.02), "chrome", 0.0, false)
 	for i in 4:                                                                                      # hob rings
-		var o := Vector3(1.35 + float(i % 2) * 0.35, 0.925, -0.28 - float(i / 2) * 0.3)
-		a.cyl(o, 0.1, 0.012, "black", layer, -1.0, 12)
-	a.cyl(Vector3(2.7, 1.1, -0.2), 0.015, 0.4, "chrome", layer, -1.0, 6)                              # tap
-	_p(a, c, Vector3(1.55, 1.65, -0.27), Vector3(1.3, 0.7, 0.32), "dark_wood", 0.0, false)           # wall cupboards
-	_p(a, c, Vector3(3.9, 1.65, -0.27), Vector3(1.0, 0.7, 0.32), "dark_wood", 0.0, false)
-	_table(a, c, Vector3(2.4, 0, -1.95), 0.9, 0.8, 0.75, "dark_wood")
-	_chair(a, c, Vector3(2.4, 0, -1.3), 0.0)
-	_chair(a, c, Vector3(2.4, 0, -2.6), PI)
-	for dx in [-0.22, 0.22]:                                                                         # two plates, two cups
-		a.cyl(Vector3(2.4 + dx, 0.765, -1.95), 0.11, 0.02, "white", layer, -1.0, 12)
-		a.cyl(Vector3(2.4 + dx, 0.8, -2.1), 0.04, 0.07, "paper", layer, -1.0, 8)
-	_p(a, c, Vector3(2.4, 0.77, -1.7), Vector3(0.12, 0.04, 0.09), "cloth_red", 0.3, false)           # pizza box corner
-	for i in 5:                                                                                      # dirty dishes by the sink
-		a.cyl(Vector3(3.0 + float(i % 2) * 0.12, 0.95 + float(i) * 0.04, -0.5), 0.1, 0.03, "white", layer, -1.0, 10)
+		a.cyl(Vector3(1.75 + float(i % 2) * 0.5, 0.925, -0.28 - float(i / 2) * 0.3), 0.1, 0.012, "black", layer, -1.0, 12)
+	_p(a, c, Vector3(3.1, 0.91, -0.41), Vector3(0.6, 0.02, 0.4), "chrome", 0.0, false)               # sink basin
+	a.cyl(Vector3(3.1, 1.1, -0.2), 0.015, 0.4, "chrome", layer, -1.0, 6)                              # tap
+	_p(a, c, Vector3(2.0, 1.65, -0.27), Vector3(1.2, 0.7, 0.32), "dark_wood", 0.0, false)            # wall cupboards
+	_p(a, c, Vector3(3.9, 1.65, -0.27), Vector3(0.6, 0.7, 0.32), "dark_wood", 0.0, false)
+	# Rotten food: a pot on the stove, plates in the sink, a pizza box on the counter
+	a.cyl(Vector3(1.75, 1.0, -0.28), 0.13, 0.16, "metal", layer, -1.0, 12)
+	a.cyl(Vector3(1.75, 1.09, -0.28), 0.115, 0.02, "mold", layer, -1.0, 12)
+	for i in 5:
+		a.cyl(Vector3(3.0 + float(i % 2) * 0.1, 0.95 + float(i) * 0.035, -0.45), 0.1, 0.03, "white", layer, -1.0, 10)
+	_rotten_plate(a, c, Vector3(3.1, 1.12, -0.45), 1)
+	_p(a, c, Vector3(2.5, 0.95, -0.38), Vector3(0.36, 0.05, 0.34), "cloth_red", 0.2, false)           # pizza box
+	_p(a, c, Vector3(2.5, 0.985, -0.38), Vector3(0.3, 0.02, 0.28), "food", 0.2, false)
+	_bottles(a, c, Vector3(3.9, 0.92, -0.4), 4, Vector2(0.2, 0.1), 21, 0.7)
+	# The trash corner (north-east): overflowing bin, bags, empty beer bottles
+	a.cyl(Vector3(4.62, 0.32, -1.85), 0.2, 0.64, "black", layer, 0.22, 12)
+	_p(a, c, Vector3(4.62, 0.7, -1.85), Vector3(0.34, 0.12, 0.3), "sheet", 0.3, false)
 	for i in 4:
-		a.cyl(Vector3(4.2 - float(i) * 0.1, 0.99, -0.4 - float(i % 2) * 0.08), 0.032, 0.12, "chrome" if i % 2 == 0 else "green_glass", layer, -1.0, 8)   # cans, bottles
-	a.cyl(Vector3(0.75, 0.25, -2.5), 0.2, 0.5, "black", layer, 0.17, 12)                              # bin
-	_p(a, c, Vector3(0.8, 0.06, -2.2), Vector3(0.4, 0.1, 0.35), "sheet", 0.4, false)                  # bin bag overflowing
-	_litter(a, c, Vector3(3.6, 0, -1.8), 4, 0.6, 6)
-	a.stain(c, Vector3(2.7, 2.49, -1.5), Vector3(0, -1, 0), 1.6)
-	a.stain(c, Vector3(2.7, 1.5, -0.11), Vector3(0, 0, -1), 1.0, 1.4)
+		a.cyl(Vector3(4.3 + float(i) * 0.12, 0.2, -2.0 + float(i % 2) * 0.12), 0.16 - float(i % 2) * 0.03, 0.38, "black", layer, 0.1, 8)
+	_p(a, c, Vector3(4.35, 0.2, -1.9), Vector3(0.4, 0.4, 0.34), "black", 0.5, false)
+	_p(a, c, Vector3(4.15, 0.16, -1.65), Vector3(0.34, 0.32, 0.3), "sheet", -0.4, false)
+	_p(a, c, Vector3(4.8, 0.14, -1.3), Vector3(0.3, 0.28, 0.4), "black", 0.2, false)
+	_bottles(a, c, Vector3(4.55, 0.0, -1.55), 14, Vector2(0.4, 0.55), 22, 0.45)
+	_rotten_plate(a, c, Vector3(4.4, 0.0, -1.15), 2)
+	_litter(a, c, Vector3(3.6, 0, -1.4), 4, 0.5, 6)
+	a.stain(c, Vector3(3.0, 2.49, -1.2), Vector3(0, -1, 0), 1.6)
+	a.stain(c, Vector3(3.0, 1.5, -0.11), Vector3(0, 0, -1), 1.0, 1.4)
+	a.stain(c, Vector3(4.89, 0.5, -1.7), Vector3(-1, 0, 0), 0.9, 1.0)
+	a.use_point("fridge", "Open the fridge", Vector3(0.8, 1.8, 0.8), Vector3(4.55, 0.9, -0.45))
+	a.use_point("trash", "The trash", Vector3(0.8, 0.8, 0.9), Vector3(4.5, 0.4, -1.7))
+	a.use_point("kitchen_food", "Look at the food", Vector3(0.9, 0.5, 0.6), Vector3(2.8, 1.0, -0.4))
+	a.add_flies(c, Vector3(4.55, 0.75, -1.75), 18, 0.34)
+	a.add_flies(c, Vector3(2.9, 1.25, -0.5), 12, 0.26)
 
 
 static func _living(a: Apartment) -> void:
-	var c := "living"                                     # x[0.46,4.89] z[-7.94,-3.06]
+	var c := "living"                                     # x[-0.94,4.89] z[-8.89,-2.14]
 	var layer := a.layer_of(c)
-	_p(a, c, Vector3(2.9, 0.225, -7.68), Vector3(1.5, 0.45, 0.42), "dark_wood")                      # TV stand
-	_p(a, c, Vector3(2.9, 0.98, -7.72), Vector3(1.15, 0.68, 0.06), "black", 0.0, false)              # TV
-	_p(a, c, Vector3(2.9, 0.98, -7.685), Vector3(1.07, 0.6, 0.01), "glass", 0.0, false)
-	_p(a, c, Vector3(2.9, 0.6, -7.7), Vector3(0.1, 0.3, 0.1), "black", 0.0, false)
-	_sofa(a, c, Vector3(2.9, 0, -5.1), 0.0, 2.1)
-	_p(a, c, Vector3(2.4, 0.58, -5.2), Vector3(0.9, 0.1, 0.6), "cloth_grey", 0.3, false)             # blanket thrown on the sofa
-	_table(a, c, Vector3(2.9, 0, -6.4), 1.0, 0.55, 0.42, "dark_wood")
-	_p(a, c, Vector3(2.7, 0.45, -6.4), Vector3(0.34, 0.05, 0.3), "cloth_red", 0.2, false)            # pizza box
+	_p(a, c, Vector3(1.0, 0.225, -9.25), Vector3(1.5, 0.45, 0.42), "dark_wood")                      # TV stand
+	_p(a, c, Vector3(1.0, 0.98, -9.29), Vector3(1.15, 0.68, 0.06), "black", 0.0, false)              # TV
+	_p(a, c, Vector3(1.0, 0.98, -9.255), Vector3(1.07, 0.6, 0.01), "glass", 0.0, false)
+	_p(a, c, Vector3(1.0, 0.6, -9.27), Vector3(0.1, 0.3, 0.1), "black", 0.0, false)
+	a.use_point("tv", "Turn on the TV", Vector3(1.4, 1.0, 0.6), Vector3(1.0, 0.8, -9.2))
+	_sofa(a, c, Vector3(1.0, 0, -6.5), 0.0, 2.1)
+	_p(a, c, Vector3(0.5, 0.6, -6.4), Vector3(0.9, 0.1, 0.6), "cloth_grey", 0.3, false)              # blanket thrown on the sofa
+	_p(a, c, Vector3(1.5, 0.6, -6.55), Vector3(0.4, 0.16, 0.3), "cloth_blue", -0.4, false)           # a jacket
+	a.use_point("sofa", "Sit down", Vector3(2.0, 0.9, 1.0), Vector3(1.0, 0.45, -6.5))
+	_table(a, c, Vector3(1.0, 0, -7.9), 1.0, 0.55, 0.42, "dark_wood")                               # coffee table, strewn
+	_p(a, c, Vector3(0.8, 0.45, -7.9), Vector3(0.36, 0.05, 0.32), "cloth_red", 0.2, false)          # pizza box
+	_rotten_plate(a, c, Vector3(1.25, 0.43, -7.85), 3)
+	_bottles(a, c, Vector3(1.0, 0.43, -7.9), 3, Vector2(0.3, 0.1), 31, 0.6)
+	_rug(a, c, Vector3(1.0, 0, -7.6), 2.4, 1.8, "cloth_blue")
+	_p(a, c, Vector3(-0.75, 0.95, -8.6), Vector3(0.3, 1.9, 1.1), "dark_wood")                         # bookshelf
 	for i in 4:
-		a.cyl(Vector3(3.1 + float(i) * 0.08, 0.5, -6.35 + float(i % 2) * 0.1), 0.032, 0.12, "chrome", layer, -1.0, 8)
-	_rug(a, c, Vector3(2.9, 0, -6.2), 2.2, 1.6, "cloth_blue")
-	_table(a, c, Vector3(0.82, 0, -3.95), 0.6, 1.3, 0.75, "dark_wood")                               # desk
-	_chair(a, c, Vector3(1.5, 0, -3.95), PI / 2.0)
-	_p(a, c, Vector3(0.82, 0.78, -3.8), Vector3(0.3, 0.02, 0.22), "metal", 0.0, false)               # laptop
-	_p(a, c, Vector3(0.78, 0.9, -3.93), Vector3(0.02, 0.2, 0.28), "black", 0.1, false)
+		_books(a, c, Vector3(-0.75, 0.2 + float(i) * 0.42, -9.1), Vector3(0, 0, 1), 12, 0.3, 0.22, i)
+	_table(a, c, Vector3(3.4, 0, -9.15), 1.3, 0.6, 0.74, "dark_wood")                                # desk under the north window
+	_chair(a, c, Vector3(3.4, 0, -8.55), 0.0)
+	_p(a, c, Vector3(3.3, 0.77, -9.15), Vector3(0.32, 0.02, 0.22), "metal", 0.0, false)              # laptop
+	_p(a, c, Vector3(3.3, 0.92, -9.28), Vector3(0.32, 0.22, 0.02), "black", 0.0, false)
 	for i in 6:
-		_p(a, c, Vector3(0.85, 0.78 + float(i) * 0.008, -4.3 + float(i % 3) * 0.05), Vector3(0.22, 0.008, 0.3), "paper", float(i) * 0.5, false)   # job applications
-	_p(a, c, Vector3(0.65, 0.95, -7.3), Vector3(0.32, 1.9, 1.1), "dark_wood")                         # bookshelf
-	for i in 4:
-		_books(a, c, Vector3(0.65, 0.2 + float(i) * 0.42, -7.8), Vector3(0, 0, 1), 12, 0.3, 0.22, i)
-	_floor_lamp(a, c, Vector3(4.6, 0, -3.5))
-	_picture(a, c, Vector3(4.89, 1.7, -3.6), Vector3(-1, 0, 0), 0.5, 0.4, "paper")
-	_picture(a, c, Vector3(1.2, 1.7, -7.94), Vector3(0, 0, 1), 0.7, 0.5, "cloth_grey")
-	_litter(a, c, Vector3(1.6, 0, -5.4), 8, 0.9, 7)
+		_p(a, c, Vector3(3.75 + float(i % 3) * 0.04, 0.77 + float(i) * 0.008, -9.1), Vector3(0.22, 0.008, 0.3), "paper", float(i) * 0.5, false)   # job applications
+	a.use_point("laptop", "Use the laptop", Vector3(0.9, 0.5, 0.7), Vector3(3.4, 0.9, -9.1))
+	# Dining table by the east windows, with food that has been left to rot
+	_table(a, c, Vector3(3.9, 0, -5.6), 0.9, 1.5, 0.75, "dark_wood")
+	_chair(a, c, Vector3(3.1, 0, -5.1), -PI / 2.0)
+	_chair(a, c, Vector3(3.1, 0, -6.1), -PI / 2.0)
+	_p(a, c, Vector3(4.6, 0.12, -6.7), Vector3(0.42, 0.42, 0.42), "dark_wood", 0.7, false)           # a chair knocked over
+	_rotten_plate(a, c, Vector3(3.7, 0.76, -5.0), 4)
+	_rotten_plate(a, c, Vector3(3.7, 0.76, -6.0), 5)
+	_rotten_plate(a, c, Vector3(4.1, 0.76, -5.5), 6)
+	a.cyl(Vector3(3.9, 0.84, -5.55), 0.09, 0.16, "metal", layer, -1.0, 10)                            # a pot with a skin of mould
+	a.cyl(Vector3(3.9, 0.925, -5.55), 0.08, 0.02, "mold", layer, -1.0, 10)
+	_bottles(a, c, Vector3(4.0, 0.75, -5.5), 5, Vector2(0.3, 0.6), 32, 0.7)
+	a.use_point("dining_food", "Look at the table", Vector3(1.0, 0.5, 1.6), Vector3(3.9, 0.9, -5.5))
+	a.add_flies(c, Vector3(3.9, 1.0, -5.5), 22, 0.4)
+	a.add_flies(c, Vector3(1.2, 0.8, -7.4), 8, 0.22)
+	_floor_lamp(a, c, Vector3(2.4, 0, -6.9))
+	_picture(a, c, Vector3(4.89, 1.7, -3.7), Vector3(-1, 0, 0), 0.5, 0.4, "paper")
+	_p(a, c, Vector3(0.45, 0.5, -9.22), Vector3(0.18, 0.22, 0.03), "dark_wood", 0.0, false)          # the framed photo of Mom and Dad
+	_p(a, c, Vector3(0.45, 0.5, -9.2), Vector3(0.14, 0.18, 0.034), "paper", 0.0, false)
+	a.use_point("photo_parents", "Look at the photo", Vector3(0.4, 0.4, 0.4), Vector3(0.45, 0.5, -9.2))
+	a.use_point("window_living", "Look outside", Vector3(0.4, 1.3, 1.4), Vector3(4.8, 1.5, -8.4))
+	_bottles(a, c, Vector3(2.5, 0, -4.0), 6, Vector2(0.9, 0.5), 33, 0.4)
+	_litter(a, c, Vector3(1.8, 0, -4.2), 9, 1.2, 7)
 	a.stain(c, Vector3(4.0, 2.49, -5.5), Vector3(0, -1, 0), 1.8)
-	a.stain(c, Vector3(1.0, 2.49, -4.0), Vector3(0, -1, 0), 1.2)
-	a.stain(c, Vector3(4.89, 0.7, -7.0), Vector3(-1, 0, 0), 1.0, 1.5)
+	a.stain(c, Vector3(0.5, 2.49, -3.5), Vector3(0, -1, 0), 1.3)
+	a.stain(c, Vector3(4.89, 0.7, -7.2), Vector3(-1, 0, 0), 1.0, 1.5)
 
 
-static func _box_room(a: Apartment) -> void:
-	var c := "box"                                        # x[0.46,2.54] z[-9.89,-8.06]
-	_p(a, c, Vector3(2.25, 0.85, -9.6), Vector3(0.5, 1.7, 0.5), "sheet", 0.4)                        # something under a sheet
-	_p(a, c, Vector3(2.25, 1.72, -9.6), Vector3(0.28, 0.3, 0.28), "sheet", 0.4, false)
-	_p(a, c, Vector3(1.95, 0.4, -8.45), Vector3(0.8, 0.8, 0.7), "sheet", 0.1)                        # covered armchair
-	_boxes(a, c, Vector3(0.62, 0, -9.72), 3, 2, Vector3(0.4, 0.3, 0.34))
-	_boxes(a, c, Vector3(0.62, 0, -8.3), 2, 1, Vector3(0.4, 0.3, 0.3))
-	_p(a, c, Vector3(1.5, 1.4, -9.88), Vector3(1.6, 0.03, 0.3), "dark_wood", 0.0, false)              # shelf with paint tins
-	for i in 5:
-		a.cyl(Vector3(0.9 + float(i) * 0.3, 1.5, -9.8), 0.07, 0.15, "metal", a.layer_of(c), -1.0, 10)
-	_litter(a, c, Vector3(1.5, 0, -9.0), 3, 0.4, 8)
-	a.stain(c, Vector3(1.5, 2.49, -9.0), Vector3(0, -1, 0), 1.3)
+static func _hall(a: Apartment) -> void:
+	var c := "hall"                                       # x[-6.29,-1.06] z[-5.54,-4.26]
+	_p(a, c, Vector3(-6.05, 0.37, -4.9), Vector3(0.4, 0.74, 0.6), "dark_wood")                       # phone table
+	_p(a, c, Vector3(-6.05, 0.78, -4.9), Vector3(0.26, 0.08, 0.22), "black", 0.0, false)             # answering machine
+	_p(a, c, Vector3(-6.03, 0.85, -4.78), Vector3(0.22, 0.04, 0.07), "black", 0.0, false)            # handset
+	_p(a, c, Vector3(-6.07, 0.84, -4.98), Vector3(0.04, 0.012, 0.04), "cloth_red", 0.0, false)       # the message light
+	a.use_point("phone", "The phone", Vector3(0.6, 0.6, 0.8), Vector3(-6.0, 0.8, -4.9))
+	_rug(a, c, Vector3(-3.6, 0, -4.9), 3.4, 0.8, "cloth_red")
+	_picture(a, c, Vector3(-2.2, 1.5, -5.54), Vector3(0, 0, 1), 0.5, 0.35, "cloth_blue")
+	_picture(a, c, Vector3(-4.2, 1.5, -5.54), Vector3(0, 0, 1), 0.36, 0.5, "paper")
+	_picture(a, c, Vector3(-2.6, 1.5, -4.26), Vector3(0, 0, -1), 0.6, 0.4, "cloth_red")
+	_plant(a, c, Vector3(-1.5, 0.0, -4.5))
+	a.stain(c, Vector3(-4.5, 2.49, -4.9), Vector3(0, -1, 0), 1.1)
+	a.stain(c, Vector3(-6.29, 0.5, -5.2), Vector3(1, 0, 0), 0.9, 1.2)
 
 
-static func _study(a: Apartment) -> void:
-	var c := "study"                                      # x[2.66,4.89] z[-9.89,-8.06]
-	_table(a, c, Vector3(3.2, 0, -9.58), 1.4, 0.6, 0.74, "dark_wood")
-	_chair(a, c, Vector3(3.0, 0, -8.95), 0.0)
-	_p(a, c, Vector3(2.9, 0.92, -9.6), Vector3(0.36, 0.34, 0.36), "paper", 0.0, false)               # old computer
-	_p(a, c, Vector3(2.9, 0.95, -9.43), Vector3(0.3, 0.26, 0.02), "black", 0.0, false)
-	_p(a, c, Vector3(3.6, 0.77, -9.55), Vector3(0.25, 0.02, 0.18), "paper", 0.2, false)
-	_p(a, c, Vector3(4.75, 0.9, -8.5), Vector3(0.28, 1.8, 0.8), "dark_wood")                          # filing shelves
-	_books(a, c, Vector3(4.75, 0.2, -8.1), Vector3(0, 0, -1), 9, 0.3, 0.22, 9)
-	_plant(a, c, Vector3(4.55, 0.0, -9.6))
-	_litter(a, c, Vector3(3.6, 0, -8.6), 4, 0.5, 10)
-	a.stain(c, Vector3(3.8, 2.49, -9.0), Vector3(0, -1, 0), 1.2)
+static func _bath(a: Apartment) -> void:
+	var c := "bath"                                       # x[-6.29,-3.86] z[-4.14,-1.71]
+	_p(a, c, Vector3(-5.44, 0.28, -2.085), Vector3(1.7, 0.56, 0.75), "white")                        # tub
+	_p(a, c, Vector3(-5.44, 0.57, -2.085), Vector3(1.55, 0.02, 0.6), "chrome", 0.0, false)
+	_p(a, c, Vector3(-4.7, 0.75, -2.0), Vector3(0.12, 0.04, 0.04), "chrome", 0.0, false)             # taps
+	_p(a, c, Vector3(-5.44, 1.3, -2.5), Vector3(1.55, 1.7, 0.02), "sheet", 0.0, false)               # shower curtain, drawn
+	a.cyl(Vector3(-5.44, 2.15, -2.5), 0.012, 1.6, "chrome", a.layer_of(c), -1.0, 6)
+	_p(a, c, Vector3(-5.98, 0.2, -3.2), Vector3(0.5, 0.4, 0.36), "white")                            # toilet
+	_p(a, c, Vector3(-6.2, 0.62, -3.2), Vector3(0.16, 0.44, 0.38), "white", 0.0, false)
+	_p(a, c, Vector3(-5.96, 0.43, -3.2), Vector3(0.44, 0.03, 0.38), "white", 0.0, false)
+	_p(a, c, Vector3(-4.05, 0.82, -3.6), Vector3(0.4, 0.12, 0.5), "white")                           # basin
+	_p(a, c, Vector3(-4.05, 0.4, -3.6), Vector3(0.12, 0.8, 0.12), "white", 0.0, false)
+	_p(a, c, Vector3(-3.92, 1.58, -3.6), Vector3(0.1, 0.8, 0.55), "dark_wood", 0.0, false)           # medicine cabinet
+	_p(a, c, Vector3(-3.87, 1.58, -3.6), Vector3(0.03, 0.72, 0.47), "glass", 0.0, false)
+	a.use_point("pills", "The medicine cabinet", Vector3(0.5, 0.9, 0.7), Vector3(-3.95, 1.5, -3.6))
+	a.use_point("shower", "Take a shower", Vector3(1.8, 1.2, 0.9), Vector3(-5.44, 0.7, -2.35))
+	_p(a, c, Vector3(-4.7, 0.012, -3.2), Vector3(0.5, 0.02, 0.8), "cloth_blue", 0.0, false)         # bath mat
+	_p(a, c, Vector3(-6.25, 1.2, -2.2), Vector3(0.04, 0.5, 0.3), "cloth_grey", 0.0, false)          # towel
+	a.stain(c, Vector3(-5.2, 2.49, -2.5), Vector3(0, -1, 0), 1.5)
+	a.stain(c, Vector3(-5.6, 1.8, -1.71), Vector3(0, 0, -1), 1.0, 1.4)
+	a.stain(c, Vector3(-4.4, 0.8, -4.14), Vector3(0, 0, 1), 0.8, 1.6)
+	a.blob_shadow(c, Vector3(-5.44, 0, -2.085), 2.0, 1.1)
+
+
+static func _storage(a: Apartment) -> void:
+	var c := "storage"                                    # x[-3.74,-1.06] z[-4.14,-1.71]
+	_boxes(a, c, Vector3(-3.5, 0, -3.8), 3, 1, Vector3(0.45, 0.34, 0.4))
+	_boxes(a, c, Vector3(-3.5, 0, -3.2), 2, 1, Vector3(0.45, 0.4, 0.45))
+	_boxes(a, c, Vector3(-3.5, 0, -2.5), 3, 1, Vector3(0.45, 0.32, 0.4))
+	_boxes(a, c, Vector3(-3.0, 0, -1.95), 2, 3, Vector3(0.4, 0.3, 0.34))
+	a.use_point("dad_boxes", "Dad's things", Vector3(0.9, 1.1, 2.2), Vector3(-3.5, 0.5, -3.0))
+	_p(a, c, Vector3(-1.45, 0.4, -2.2), Vector3(0.9, 0.8, 0.85), "leather", 0.7)                      # his armchair
+	_p(a, c, Vector3(-1.3, 0.78, -2.3), Vector3(0.25, 0.5, 0.85), "leather", 0.7, false)
+	a.blob_shadow(c, Vector3(-1.45, 0, -2.2), 1.3, 1.3)
+	_p(a, c, Vector3(-3.5, 1.1, -3.0), Vector3(0.3, 0.18, 0.12), "black", 0.3, false)                # his radio, on the boxes
+	_picture(a, c, Vector3(-1.06, 1.55, -2.9), Vector3(-1, 0, 0), 0.5, 0.4, "paper")                 # family photo
+	_picture(a, c, Vector3(-3.74, 1.5, -2.9), Vector3(1, 0, 0), 0.4, 0.5, "cloth_blue")
+	_litter(a, c, Vector3(-2.4, 0, -3.0), 4, 0.4, 1)
+	a.stain(c, Vector3(-2.8, 2.49, -3.0), Vector3(0, -1, 0), 1.2)
+
+
+static func _bed1(a: Apartment) -> void:
+	var c := "bed1"                                       # x[-6.29,-3.46] z[-8.89,-5.66]
+	_bed(a, c, Vector3(-4.85, 0, -8.41), PI, 1.4, 2.1)                                               # head to the north wall
+	a.use_point("bed1", "Go to sleep", Vector3(1.4, 0.9, 2.0), Vector3(-4.85, 0.5, -8.2))
+	_p(a, c, Vector3(-3.75, 0.25, -9.2), Vector3(0.4, 0.5, 0.4), "dark_wood")
+	a.cyl(Vector3(-3.75, 0.62, -9.2), 0.05, 0.2, "brass", a.layer_of(c), 0.03, 8)                     # bedside lamp
+	a.cyl(Vector3(-3.75, 0.82, -9.2), 0.1, 0.16, "lampshade", a.layer_of(c), 0.07, 10)
+	_bottles(a, c, Vector3(-3.75, 0.5, -8.9), 2, Vector2(0.05, 0.1), 41, 1.0)
+	_p(a, c, Vector3(-5.99, 1.0, -6.4), Vector3(0.6, 2.0, 1.2), "dark_wood")                          # wardrobe
+	_p(a, c, Vector3(-5.68, 1.0, -6.1), Vector3(0.02, 0.5, 0.02), "brass", 0.0, false)
+	_p(a, c, Vector3(-5.68, 1.0, -6.7), Vector3(0.02, 0.5, 0.02), "brass", 0.0, false)
+	a.use_point("wardrobe", "The wardrobe", Vector3(0.8, 2.0, 1.4), Vector3(-5.95, 1.0, -6.4))
+	_rug(a, c, Vector3(-4.85, 0, -6.4), 1.8, 1.1, "cloth_blue")
+	_litter(a, c, Vector3(-4.6, 0, -6.2), 8, 0.7, 2)
+	_bottles(a, c, Vector3(-5.1, 0, -6.1), 4, Vector2(0.6, 0.3), 42, 0.5)
+	_picture(a, c, Vector3(-3.46, 1.6, -7.8), Vector3(-1, 0, 0), 0.6, 0.45, "cloth_grey")
+	a.stain(c, Vector3(-4.6, 2.49, -7.5), Vector3(0, -1, 0), 1.3)
+	a.stain(c, Vector3(-6.29, 2.0, -7.5), Vector3(1, 0, 0), 0.9, 1.0)
+
+
+static func _bed2(a: Apartment) -> void:
+	var c := "bed2"                                       # x[-3.34,-1.06] z[-8.89,-5.66]
+	_bed(a, c, Vector3(-1.55, 0, -8.46), PI, 0.95, 2.0, "sheet", "cloth_blue")                         # Jack's old bed
+	_table(a, c, Vector3(-3.04, 0, -8.0), 0.6, 1.2, 0.74, "dark_wood")                                # desk
+	_chair(a, c, Vector3(-2.7, 0, -8.0), PI / 2.0)
+	_p(a, c, Vector3(-3.05, 0.92, -8.3), Vector3(0.35, 0.3, 0.3), "black", 0.0, false)               # old monitor
+	_p(a, c, Vector3(-3.0, 0.78, -7.7), Vector3(0.3, 0.02, 0.2), "paper", 0.0, false)
+	a.use_point("jack_desk", "Jack's desk", Vector3(0.8, 0.8, 1.4), Vector3(-3.0, 0.8, -8.0))
+	_p(a, c, Vector3(-2.4, 1.0, -9.48), Vector3(0.9, 0.02, 0.28), "dark_wood", 0.0, false)            # shelf with trophies
+	for i in 4:
+		a.cyl(Vector3(-2.7 + float(i) * 0.22, 1.1, -9.4), 0.045, 0.15, "brass", a.layer_of(c), 0.03, 8)
+	_picture(a, c, Vector3(-3.34, 1.6, -8.8), Vector3(1, 0, 0), 0.5, 0.7, "cloth_red")                # poster
+	_litter(a, c, Vector3(-2.3, 0, -6.3), 3, 0.4, 4)
+	a.stain(c, Vector3(-2.2, 2.49, -7.5), Vector3(0, -1, 0), 1.4)
