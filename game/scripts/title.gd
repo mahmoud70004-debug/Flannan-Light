@@ -54,6 +54,20 @@ func _ready() -> void:
 
 	box.add_child(_slider("Brightness", 0.6, 1.8, Settings.brightness, func(v: float) -> void: Settings.brightness = v))
 	box.add_child(_slider("Look sensitivity", 0.001, 0.012, Settings.look_sensitivity, func(v: float) -> void: Settings.look_sensitivity = v))
+	var fx := _button("Pixel filter: %s" % Film.fx_name(Settings.fx))
+	fx.custom_minimum_size = Vector2(0, 56)
+	fx.add_theme_font_size_override("font_size", 26)
+	fx.pressed.connect(func() -> void:
+		Settings.cycle_fx()
+		fx.text = "Pixel filter: %s" % Film.fx_name(Settings.fx))
+	box.add_child(fx)
+	var aa := _button("Anti-aliasing: %s" % ["off", "2x", "4x"][Settings.msaa])
+	aa.custom_minimum_size = Vector2(0, 56)
+	aa.add_theme_font_size_override("font_size", 26)
+	aa.pressed.connect(func() -> void:
+		Settings.cycle_msaa()
+		aa.text = "Anti-aliasing: %s" % ["off", "2x", "4x"][Settings.msaa])
+	box.add_child(aa)
 	var res := _button("Picture height: %dp" % Settings.render_height)
 	res.custom_minimum_size = Vector2(0, 56)
 	res.add_theme_font_size_override("font_size", 26)

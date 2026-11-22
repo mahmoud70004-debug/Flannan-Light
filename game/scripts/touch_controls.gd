@@ -10,7 +10,7 @@ signal menu_pressed
 signal grade_pressed
 signal resolution_pressed
 signal shadows_pressed
-signal aa_pressed
+signal fx_pressed
 
 const STICK_RADIUS := 110.0
 const KNOB_RADIUS := 46.0
@@ -26,7 +26,7 @@ var _look_index := -1
 var _ui_index := -1
 var _stick_base := Vector2.ZERO
 var _stick_knob := Vector2.ZERO
-var _labels := ["MENU", "GRADE", "RES", "SHADOW", "AA"]
+var _labels := ["MENU", "GRADE", "RES", "SHADOW", "FX"]
 var _last_pos := {}                ## finger index -> last absolute position (see _drag)
 var _use_mouse := false
 
@@ -87,7 +87,7 @@ func _press(index: int, pos: Vector2) -> void:
 				1: grade_pressed.emit()
 				2: resolution_pressed.emit()
 				3: shadows_pressed.emit()
-				4: aa_pressed.emit()
+				4: fx_pressed.emit()
 			return
 	if pos.x < size.x * LEFT_ZONE:
 		if _stick_index == -1:

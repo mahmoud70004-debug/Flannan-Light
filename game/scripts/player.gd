@@ -22,7 +22,7 @@ func _ready() -> void:
 	floor_max_angle = deg_to_rad(46.0)
 	var shape := CollisionShape3D.new()
 	var capsule := CapsuleShape3D.new()
-	capsule.radius = 0.35
+	capsule.radius = 0.27
 	capsule.height = 1.7
 	shape.shape = capsule
 	shape.position.y = 0.85
@@ -33,7 +33,7 @@ func _ready() -> void:
 	add_child(head)
 
 	camera = Camera3D.new()
-	camera.fov = 72.0
+	camera.fov = 60.0
 	camera.near = 0.05
 	camera.far = 60.0
 	head.add_child(camera)
@@ -42,6 +42,12 @@ func _ready() -> void:
 	_ray.target_position = Vector3(0, 0, -REACH)
 	_ray.collision_mask = INTERACT_LAYER
 	camera.add_child(_ray)
+
+
+## Set the view direction directly (debug views and scripted moments): pitch in radians.
+func set_pitch(pitch: float) -> void:
+	_pitch = clampf(pitch, -PITCH_LIMIT, PITCH_LIMIT)
+	head.rotation.x = _pitch
 
 
 func look_by(relative: Vector2, sensitivity: float) -> void:

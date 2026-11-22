@@ -5,12 +5,13 @@ signal changed
 
 const PATH := "user://settings.cfg"
 const RENDER_HEIGHTS := [360, 480, 540, 720, 1080]
-const VERSION := 4                 ## stored with the file; older looks are discarded
+const VERSION := 5                 ## stored with the file; older looks are discarded
 
 var look_sensitivity: float = 0.0045   ## radians per UI pixel dragged
 var render_height: int = 540           ## height of the 3D image; the screen is upscaled from it
 var brightness: float = 1.0
 var grade: int = 0                     ## index into Film.GRADES
+var fx: int = 4                        ## pixel/dither filter: 0 off, 1-3 fixed, 4 = AUTO (follows fear)
 var msaa: int = 0                      ## 0 off, 1 = 2x, 2 = 4x
 var shadows: int = 0                   ## 0 off, 1 corridor lamps, 2 every lamp
 var show_debug: bool = true
@@ -29,6 +30,7 @@ func _ready() -> void:
 		render_height = 540
 	brightness = clampf(cfg.get_value("video", "brightness", brightness), 0.6, 1.8)
 	grade = clampi(int(cfg.get_value("video", "grade", grade)), 0, Film.GRADES.size() - 1)
+	fx = clampi(int(cfg.get_value("video", "fx", fx)), 0, Film.FX_NAMES.size() - 1)
 	msaa = clampi(int(cfg.get_value("video", "msaa", msaa)), 0, 2)
 	shadows = clampi(int(cfg.get_value("video", "shadows", shadows)), 0, 2)
 
@@ -40,6 +42,7 @@ func save() -> void:
 	cfg.set_value("video", "render_height", render_height)
 	cfg.set_value("video", "brightness", brightness)
 	cfg.set_value("video", "grade", grade)
+	cfg.set_value("video", "fx", fx)
 	cfg.set_value("video", "msaa", msaa)
 	cfg.set_value("video", "shadows", shadows)
 	cfg.set_value("debug", "show_debug", show_debug)
@@ -60,6 +63,11 @@ func cycle_shadows() -> void:
 
 func cycle_grade() -> void:
 	grade = (grade + 1) % Film.GRADES.size()
+	save()
+
+
+func cycle_fx() -> void:
+	fx = (fx + 1) % Film.FX_NAMES.size()
 	save()
 
 

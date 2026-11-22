@@ -1,8 +1,9 @@
 extends Node
 ## The game world: Martin's flat, the first-person player, and the render pipeline
 ## (3D at a chosen height -> film shader -> screen). Debug aids for look-dev and
-## tests: add ?spawn=<spot>&res=<height>&grade=<n>&shadows=<n> to the web URL, or pass
-## `-- --spawn=<spot> --res=<height>` to the Godot command line.
+## tests: add ?spawn=<spot>&res=<height>&grade=<n>&shadows=<n>&fx=<0-4>&fear=<0-1> to the web URL,
+## or pass `-- --spawn=<spot> --res=<height> --fear=0.5` to the Godot command line.
+## `spawn=plan` is a top-down view with the ceilings hidden.
 
 const SHADER := preload("res://shaders/film_post.gdshader")
 
@@ -14,6 +15,10 @@ var _hud: Hud
 var _apartment: Apartment
 var _env: Environment
 var _overrides := {}
+var _elapsed := 0.0
+var _spike := 0.0                 ## a short burst of extra fear (events call boost_fear)
+var _next_spike := 25.0
+var fear := 0.0                   ## 0..1 story tension; drives the pixel/dither filter in AUTO
 
 
 func _ready() -> void:
@@ -29,7 +34,7 @@ func _ready() -> void:
 ## Debug arguments from the URL (web) or command line (desktop).
 func _read_overrides() -> void:
 	if OS.has_feature("web"):
-		for key in ["spawn", "res", "grade", "shadows", "msaa"]:
+		for key in ["spawn", "res", "grade", "shadows", "msaa", "fx", "fear"]:
 			var v := str(JavaScriptBridge.eval("new URLSearchParams(location.search).get('%s') || ''" % key))
 			if v != "":
 				_overrides[key] = v
@@ -41,6 +46,25 @@ func _read_overrides() -> void:
 
 func _opt(key: String, stored: int) -> int:
 	return int(_overrides[key]) if _overrides.has(key) else stored
+
+
+## Extra fear for a moment (an event, a sound). Decays on its own.
+func boost_fear(amount: float) -> void:
+	_spike = maxf(_spike, amount)
+
+
+## Tension over time: a slow rise from 0.12 to about 0.9 over ten minutes, a breathing
+## wobble, and now and then a spike. Events add to it with boost_fear().
+func _update_fear(delta: float) -> void:
+	_elapsed += delta
+	_spike = maxf(_spike - delta / 1.6 * 0.35, 0.0)
+	if _elapsed >= _next_spike:
+		_spike = maxf(_spike, 0.3)
+		_next_spike = _elapsed + randf_range(25.0, 55.0)
+	var base := 0.12 + 0.78 * smoothstep(0.0, 600.0, _elapsed)
+	fear = clampf(base + 0.05 * sin(_elapsed * 0.6) + _spike, 0.0, 1.0)
+	if _overrides.has("fear"):
+		fear = clampf(float(_overrides["fear"]), 0.0, 1.0)
 
 
 # --- render pipeline --------------------------------------------------------
@@ -73,13 +97,18 @@ func _apply_settings() -> void:
 	_view.size = Vector2i(maxi(int(round(h * vr.x / maxf(vr.y, 1.0))), 16), h)
 	var aa := _opt("msaa", Settings.msaa)
 	_view.msaa_3d = [Viewport.MSAA_DISABLED, Viewport.MSAA_2X, Viewport.MSAA_4X][aa]
-	var grade := _opt("grade", Settings.grade)
-	Film.apply(_post_mat, grade, Settings.brightness)
 	var shadows := _opt("shadows", Settings.shadows)
 	if _apartment:
 		_apartment.apply_shadows(shadows)
+	_apply_film()
 	if _hud:
-		_hud.set_info("%s · %dp · MSAA %s · shadows %s · %s" % [Film.grade_name(grade), h, ["off", "2x", "4x"][aa], ["off", "corridor", "all"][shadows], BuildInfo.label()])
+		var grade := _opt("grade", Settings.grade)
+		_hud.set_info("%s · FX %s · %dp · MSAA %s · shadows %s · %s" % [Film.grade_name(grade), Film.fx_name(_opt("fx", Settings.fx)), h, ["off", "2x", "4x"][aa], ["off", "hall", "all"][shadows], BuildInfo.label()])
+
+
+func _apply_film() -> void:
+	var amount := Film.fx_amount(_opt("fx", Settings.fx), fear)
+	Film.apply(_post_mat, _opt("grade", Settings.grade), Settings.brightness, amount)
 
 
 # --- 3D world ---------------------------------------------------------------
@@ -106,6 +135,7 @@ func _build_world() -> void:
 
 	_player = Player.new()
 	_view.add_child(_player)
+	_apartment.viewer = _player
 	_player.position = _apartment.spawn_point()
 	_player.rotation.y = _apartment.spawn_yaw()
 	var spot := str(_overrides.get("spawn", ""))
@@ -113,6 +143,15 @@ func _build_world() -> void:
 	if spots.has(spot):
 		_player.position = spots[spot][0]
 		_player.rotation.y = spots[spot][1]
+		_player.set_pitch(spots[spot][2])
+	elif spot == "plan":
+		_player.position = Vector3(-0.8, 15.0, -5.0)
+		_player.rotation.y = 0.0
+		_player.set_pitch(-PI / 2.0)
+		_player.set_physics_process(false)
+		_apartment.set_ceilings_visible(false)
+		_apartment.show_everything()
+		_env.fog_enabled = false
 
 
 # --- UI ----------------------------------------------------------------------
@@ -131,7 +170,7 @@ func _build_ui() -> void:
 	_controls.grade_pressed.connect(Settings.cycle_grade)
 	_controls.resolution_pressed.connect(Settings.cycle_render_height)
 	_controls.shadows_pressed.connect(Settings.cycle_shadows)
-	_controls.aa_pressed.connect(Settings.cycle_msaa)
+	_controls.fx_pressed.connect(Settings.cycle_fx)
 
 
 func _on_interact() -> void:
@@ -140,7 +179,9 @@ func _on_interact() -> void:
 		t.call("interact")
 
 
-func _process(_delta: float) -> void:
+func _process(delta: float) -> void:
+	_update_fear(delta)
+	_apply_film()
 	_player.move_input = _controls.move_vector
 	var t := _player.target()
 	_controls.can_interact = t != null

@@ -18,6 +18,6 @@ godot --headless --path game --script res://tests/smoke.gd    # smoke test
 godot --path game res://scenes/world.tscn -- --spawn=living --res=720   # debug spawn and picture height
 ```
 
-Debug spawns: `door`, `mid`, `end`, `living`, `kitchen`, `bedroom`, `bath`, `storage`, `phone`. On the web build use `?spawn=living&res=720&grade=1&shadows=1&msaa=1`.
+Debug spawns: `door`, `hall`, `phone`, `end`, `hallw`, `bedroom`, `dressing`, `bath`, `dads`, `spare`, `utility`, `kitchen`, `living`, `box`, `study`, and `plan` (top-down, ceilings hidden). On the web build use `?spawn=living&res=720&grade=1&shadows=1&fx=3&fear=0.5`.
 
 All characters in the game are fictional.
