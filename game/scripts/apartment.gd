@@ -764,8 +764,7 @@ func setup_tv(pos: Vector3, w: float, h: float) -> void:
 	_tv.position = pos
 	_tv.layers = L_LIV
 	_tv.visible = false
-	add_child(_tv)
-	cull_items.append(_tv)
+	add_child(_tv)                                     # not culled by room: it is shown only when the story says so
 	_tv_light = OmniLight3D.new()                      # the cold light of a TV nobody is watching
 	_tv_light.position = pos + Vector3(0, 0.1, 0.5)
 	_tv_light.light_color = Color(0.7, 0.8, 1.0)

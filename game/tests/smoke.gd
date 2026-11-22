@@ -56,6 +56,8 @@ func _run() -> void:
 			await process_frame
 			await process_frame
 			_check(is_instance_valid(inst), "%s runs two frames" % path)
+			if path.ends_with("world.tscn"):
+				await _exercise_menu(inst)
 			inst.queue_free()
 			await process_frame
 
@@ -424,3 +426,33 @@ func _bot_use(story, hud, id: String) -> void:
 			hud.close_doc()
 		if story.is_free():
 			break
+
+
+## The pause menu opens, every row works (each press rebuilds the menu), and RESUME unpauses.
+func _exercise_menu(w) -> void:
+	w._toggle_menu()
+	await process_frame
+	_check(w._hud.menu_open and paused, "the pause menu opens and pauses the game")
+	var rows: int = w._hud.find_child("Box", true, false).get_child_count()
+	_check(rows >= 8, "the pause menu has %d rows" % rows)
+	for i in range(1, rows - 1):
+		var box = w._hud.find_child("Box", true, false)
+		if i < box.get_child_count():
+			(box.get_child(i) as Button).pressed.emit()
+		await process_frame
+		await process_frame
+	var box2 = w._hud.find_child("Box", true, false)
+	(box2.get_child(0) as Button).pressed.emit()
+	await process_frame
+	_check(not w._hud.menu_open and not paused, "RESUME closes the menu and unpauses")
+	for k in ["Settings"]:
+		var st = root.get_node(k)
+		st.reduce_flash = false
+		st.volume = 1.0
+		st.show_debug = false
+		st.grade = 0
+		st.fx = 4
+		st.shadows = 0
+		st.msaa = 0
+		st.render_height = 540
+		st.save()
