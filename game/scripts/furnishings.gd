@@ -25,7 +25,15 @@ static func _p(a: Apartment, cell: String, c: Vector3, size: Vector3, mat: Strin
 	a.prop(cell, c, size, mat, yaw, collide)
 
 
+const TABLES := {"0.90,1.50,0.75": "table_0_9x1_5x0_75", "1.30,0.60,0.74": "table_1_3x0_6x0_74", "0.60,1.20,0.74": "table_0_6x1_2x0_74", "1.00,0.55,0.42": "table_1_0x0_55x0_42"}
+
+
 static func _table(a: Apartment, cell: String, c: Vector3, w: float, d: float, h: float, mat: String, yaw := 0.0) -> void:
+	var key := "%.2f,%.2f,%.2f" % [w, d, h]
+	if TABLES.has(key) and a.place_model(TABLES[key], cell, c, yaw):
+		a.collider(_at(c, yaw, Vector3(0, h - 0.02, 0)), Vector3(w, 0.04, d), yaw)
+		a.blob_shadow(cell, c, w + 0.3, d + 0.3)
+		return
 	_p(a, cell, _at(c, yaw, Vector3(0, h - 0.02, 0)), Vector3(w, 0.04, d), mat, yaw)
 	for sx in [-1.0, 1.0]:
 		for sz in [-1.0, 1.0]:
@@ -34,6 +42,10 @@ static func _table(a: Apartment, cell: String, c: Vector3, w: float, d: float, h
 
 
 static func _chair(a: Apartment, cell: String, c: Vector3, yaw: float, mat := "dark_wood") -> void:
+	if a.place_model("chair", cell, c, yaw):
+		a.collider(_at(c, yaw, Vector3(0, 0.45, 0)), Vector3(0.42, 0.04, 0.42), yaw)
+		a.blob_shadow(cell, c, 0.55, 0.55)
+		return
 	_p(a, cell, _at(c, yaw, Vector3(0, 0.45, 0)), Vector3(0.42, 0.04, 0.42), mat, yaw)
 	_p(a, cell, _at(c, yaw, Vector3(0, 0.72, 0.19)), Vector3(0.42, 0.5, 0.04), mat, yaw, false)
 	_p(a, cell, _at(c, yaw, Vector3(0, 0.84, 0.19)), Vector3(0.34, 0.1, 0.05), mat, yaw, false)
@@ -44,6 +56,10 @@ static func _chair(a: Apartment, cell: String, c: Vector3, yaw: float, mat := "d
 
 
 static func _sofa(a: Apartment, cell: String, c: Vector3, yaw: float, w: float, mat := "fabric") -> void:
+	if absf(w - 2.1) < 0.01 and a.place_model("sofa_2_1", cell, c, yaw):
+		a.collider(_at(c, yaw, Vector3(0, 0.45, 0)), Vector3(w, 0.9, 0.92), yaw)
+		a.blob_shadow(cell, c, w + 0.4, 1.3)
+		return
 	_p(a, cell, _at(c, yaw, Vector3(0, 0.2, 0)), Vector3(w, 0.3, 0.9), "dark_wood", yaw)
 	for i in 2:                                                              # seat cushions
 		var sx := (-0.5 + i) * (w - 0.4) * 0.5
@@ -55,6 +71,12 @@ static func _sofa(a: Apartment, cell: String, c: Vector3, yaw: float, w: float, 
 
 
 static func _bed(a: Apartment, cell: String, c: Vector3, yaw: float, w: float, l: float, sheets := "sheet", cover := "cloth_grey") -> void:
+	var bed_model := "bed_1_4x2_1" if absf(w - 1.4) < 0.01 else "bed_0_95x2"
+	if a.place_model(bed_model, cell, _at(c, yaw, Vector3.ZERO), yaw):          # the model has its head at +Z, like the game's bed
+		a.collider(_at(c, yaw, Vector3(0, 0.3, 0)), Vector3(w + 0.1, 0.6, l + 0.08), yaw)
+		a.collider(_at(c, yaw, Vector3(0, 0.48, l * 0.5 + 0.03)), Vector3(w + 0.14, 0.95, 0.07), yaw)
+		a.blob_shadow(cell, c, w + 0.5, l + 0.5)
+		return
 	_p(a, cell, _at(c, yaw, Vector3(0, 0.17, 0)), Vector3(w + 0.1, 0.3, l + 0.08), "dark_wood", yaw)
 	_p(a, cell, _at(c, yaw, Vector3(0, 0.4, 0)), Vector3(w, 0.2, l), sheets, yaw, false)
 	_p(a, cell, _at(c, yaw, Vector3(0.04, 0.52, -l * 0.17)), Vector3(w - 0.08, 0.1, l * 0.62), cover, yaw, false)    # duvet, pushed back
@@ -100,9 +122,7 @@ static func _plant(a: Apartment, cell: String, c: Vector3, dead := true) -> void
 
 static func _floor_lamp(a: Apartment, cell: String, c: Vector3, color := Color(1.0, 0.72, 0.45), energy := 0.45) -> void:
 	var layer := a.layer_of(cell)
-	a.cyl(c + Vector3(0, 0.02, 0), 0.15, 0.04, "metal", layer)
-	a.cyl(c + Vector3(0, 0.8, 0), 0.015, 1.6, "metal", layer, -1.0, 6)
-	a.cyl(c + Vector3(0, 1.62, 0), 0.07, 0.3, "lampshade", layer, 0.13)
+	a.place_model("floor_lamp", cell, c, 0.0)
 	var light := OmniLight3D.new()
 	light.position = c + Vector3(0, 1.5, 0)
 	light.light_color = color
@@ -159,16 +179,15 @@ static func _bottles(a: Apartment, cell: String, c: Vector3, n: int, spread: Vec
 	for i in n:
 		var p := c + Vector3(rng.randf_range(-spread.x, spread.x), 0.0, rng.randf_range(-spread.y, spread.y))
 		if rng.randf() < standing_ratio:
-			a.cyl(p + Vector3(0, 0.09, 0), 0.033, 0.18, "beer", layer, -1.0, 8)
-			a.cyl(p + Vector3(0, 0.22, 0), 0.012, 0.09, "beer", layer, 0.017, 6)
+			a.place_model("bottle", cell, p, rng.randf_range(0.0, 6.28))
 		else:
-			_p(a, cell, p + Vector3(0, 0.035, 0), Vector3(0.07, 0.07, 0.24), "beer", rng.randf_range(0.0, 3.14), false)
+			a.place_model("bottle", cell, p + Vector3(0, 0.034, 0), rng.randf_range(0.0, 6.28), Basis(Vector3.RIGHT, PI / 2.0))
 
 
 static func _rotten_plate(a: Apartment, cell: String, c: Vector3, seed_i: int) -> void:
 	# A plate of food that has been there for days: grey-green mould, black patches.
 	var layer := a.layer_of(cell)
-	a.cyl(c + Vector3(0, 0.012, 0), 0.115, 0.024, "white", layer, -1.0, 14)
+	a.place_model("plate", cell, c, 0.0)
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 400 + seed_i
 	for i in 5:
@@ -182,8 +201,8 @@ static func _rotten_plate(a: Apartment, cell: String, c: Vector3, seed_i: int) -
 static func _entry(a: Apartment) -> void:
 	var c := "entry"                                      # x[-0.94,1.14] z[-2.14,-0.11]
 	_p(a, c, Vector3(-0.78, 0.17, -1.7), Vector3(0.3, 0.34, 0.8), "dark_wood")                       # shoe rack
-	for i in 4:
-		_p(a, c, Vector3(-0.78, 0.4, -2.0 + float(i) * 0.2), Vector3(0.22, 0.09, 0.13), "leather", float(i) * 0.4, false)
+	for i in 3:
+		a.place_model("shoes", c, Vector3(-0.78, 0.34, -2.0 + float(i) * 0.26), float(i) * 0.6 + 1.5)
 	_p(a, c, Vector3(-0.9, 1.55, -1.1), Vector3(0.04, 0.04, 0.5), "brass", 0.0, false)               # hooks
 	a.make_movable("coat", c, Vector3(-0.84, 1.0, -1.1), [[Vector3.ZERO, Vector3(0.1, 1.1, 0.3), "cloth_grey"], [Vector3(0, 0.5, 0.0), Vector3(0.12, 0.08, 0.2), "cloth_grey"]])   # Martin's coat
 	_p(a, c, Vector3(0.1, 0.007, -0.32), Vector3(0.8, 0.014, 0.45), "cloth_grey", 0.0, false)        # doormat
@@ -200,18 +219,14 @@ static func _entry(a: Apartment) -> void:
 static func _kitchen(a: Apartment) -> void:
 	var c := "kitchen"                                    # x[1.26,4.89] z[-2.14,-0.11]
 	var layer := a.layer_of(c)
-	_p(a, c, Vector3(4.55, 0.9, -0.45), Vector3(0.65, 1.8, 0.65), "white")                           # fridge
-	_p(a, c, Vector3(4.2, 1.1, -0.78), Vector3(0.02, 0.5, 0.03), "chrome", 0.0, false)
-	_p(a, c, Vector3(2.0, 0.44, -0.41), Vector3(1.2, 0.88, 0.6), "dark_wood")                        # stove unit
-	_p(a, c, Vector3(3.1, 0.44, -0.41), Vector3(1.0, 0.88, 0.6), "dark_wood")                        # sink unit
-	_p(a, c, Vector3(3.9, 0.44, -0.41), Vector3(0.6, 0.88, 0.6), "dark_wood")
-	for x in [2.0, 3.1, 3.9]:
-		_p(a, c, Vector3(x, 0.9, -0.41), Vector3(1.2 if x == 2.0 else (1.0 if x == 3.1 else 0.6), 0.04, 0.62), "metal", 0.0, false)
-		_p(a, c, Vector3(x, 0.7, -0.72), Vector3(0.5, 0.02, 0.02), "chrome", 0.0, false)
-	for i in 4:                                                                                      # hob rings
-		a.cyl(Vector3(1.75 + float(i % 2) * 0.5, 0.925, -0.28 - float(i / 2) * 0.3), 0.1, 0.012, "black", layer, -1.0, 12)
-	_p(a, c, Vector3(3.1, 0.91, -0.41), Vector3(0.6, 0.02, 0.4), "chrome", 0.0, false)               # sink basin
-	a.cyl(Vector3(3.1, 1.1, -0.2), 0.015, 0.4, "chrome", layer, -1.0, 6)                              # tap
+	a.place_model("fridge", c, Vector3(4.55, 0.0, -0.45), 0.0)                                       # fridge
+	a.collider(Vector3(4.55, 0.9, -0.45), Vector3(0.65, 1.8, 0.65))
+	a.place_model("cab_1_2_stove", c, Vector3(2.0, 0.0, -0.41), 0.0)                                  # stove unit, sink unit, base unit
+	a.place_model("cab_1_0_sink", c, Vector3(3.1, 0.0, -0.41), 0.0)
+	a.place_model("cab_0_6", c, Vector3(3.9, 0.0, -0.41), 0.0)
+	a.collider(Vector3(2.0, 0.45, -0.41), Vector3(1.2, 0.9, 0.6))
+	a.collider(Vector3(3.1, 0.45, -0.41), Vector3(1.0, 0.9, 0.6))
+	a.collider(Vector3(3.9, 0.45, -0.41), Vector3(0.6, 0.9, 0.6))
 	_p(a, c, Vector3(2.0, 1.65, -0.27), Vector3(1.2, 0.7, 0.32), "dark_wood", 0.0, false)            # wall cupboards
 	_p(a, c, Vector3(3.9, 1.65, -0.27), Vector3(0.6, 0.7, 0.32), "dark_wood", 0.0, false)
 	# Rotten food: a pot on the stove, plates in the sink, a pizza box on the counter
@@ -220,16 +235,15 @@ static func _kitchen(a: Apartment) -> void:
 	for i in 5:
 		a.cyl(Vector3(3.0 + float(i % 2) * 0.1, 0.95 + float(i) * 0.035, -0.45), 0.1, 0.03, "white", layer, -1.0, 10)
 	_rotten_plate(a, c, Vector3(3.1, 1.12, -0.45), 1)
-	_p(a, c, Vector3(2.5, 0.95, -0.38), Vector3(0.36, 0.05, 0.34), "cloth_red", 0.2, false)           # pizza box
-	_p(a, c, Vector3(2.5, 0.985, -0.38), Vector3(0.3, 0.02, 0.28), "food", 0.2, false)
+	a.place_model("pizza_box", c, Vector3(2.55, 0.92, -0.4), 0.2)                                    # pizza box
 	_bottles(a, c, Vector3(3.9, 0.92, -0.4), 4, Vector2(0.2, 0.1), 21, 0.7)
 	# The trash corner (north-east): an overflowing bin, torn bags and spilled rubbish, empty beer bottles
 	a.cyl(Vector3(4.62, 0.32, -1.85), 0.2, 0.64, "black", layer, 0.22, 12)
-	a.ball(Vector3(4.62, 0.74, -1.85), 0.26, "bag", layer, 0.7, 0.15, 3)                              # overflow on the bin
-	a.ball(Vector3(4.2, 0.2, -2.0), 0.24, "bag", layer, 0.85, 0.12, 4)
-	a.ball(Vector3(4.42, 0.17, -1.5), 0.2, "bag", layer, 0.8, 0.14, 5)
-	a.ball(Vector3(4.12, 0.15, -1.62), 0.17, "bag", layer, 0.8, 0.18, 6)
-	a.ball(Vector3(4.78, 0.16, -1.2), 0.19, "bag", layer, 0.85, 0.12, 7)
+	a.place_model("bag_0", c, Vector3(4.62, 0.58, -1.85), 0.4)                                        # overflow on the bin
+	a.place_model("bag_1", c, Vector3(4.2, 0.0, -2.0), 1.1)
+	a.place_model("bag_2", c, Vector3(4.42, 0.0, -1.5), 2.3)
+	a.place_model("bag_0", c, Vector3(4.12, 0.0, -1.62), 0.2)
+	a.place_model("bag_1", c, Vector3(4.78, 0.0, -1.2), 3.0)
 	for i in 9:                                                                                       # spilled rubbish
 		var mats := ["paper", "food", "cloth_red", "rot", "mold", "paper", "cloth_blue", "food", "paper"]
 		_p(a, c, Vector3(4.0 + float(i % 4) * 0.2, 0.012, -1.35 - float(i / 4) * 0.22), Vector3(0.11 + 0.03 * float(i % 3), 0.02, 0.08 + 0.03 * float(i % 2)), mats[i], float(i) * 0.9, false)
@@ -252,11 +266,9 @@ static func _living(a: Apartment) -> void:
 	var c := "living"                                     # x[-0.94,4.89] z[-8.89,-2.14]
 	var layer := a.layer_of(c)
 	_p(a, c, Vector3(1.0, 0.225, -9.25), Vector3(1.5, 0.45, 0.42), "dark_wood")                      # TV stand
-	_p(a, c, Vector3(1.0, 0.98, -9.29), Vector3(1.15, 0.68, 0.06), "black", 0.0, false)              # TV
-	_p(a, c, Vector3(1.0, 0.98, -9.255), Vector3(1.07, 0.6, 0.01), "glass", 0.0, false)
-	_p(a, c, Vector3(1.0, 0.6, -9.27), Vector3(0.1, 0.3, 0.1), "black", 0.0, false)
+	a.place_model("tv", c, Vector3(1.0, 0.45, -9.27), PI)                                            # TV on its stand
 	a.use_point("tv", "Turn on the TV", Vector3(1.4, 1.0, 0.6), Vector3(1.0, 0.8, -9.2))
-	a.setup_tv(Vector3(1.0, 0.98, -9.245), 1.07, 0.6)
+	a.setup_tv(Vector3(1.0, 0.83, -9.236), 1.07, 0.6)
 	# He is on the sofa, in the epilogue only: slumped, facing the TV, in the grey hoodie and jeans
 	a.make_movable("body", c, Vector3(1.0, 0.0, -6.4), [
 		[Vector3(0, 0.78, 0.12), Vector3(0.5, 0.56, 0.3), "cloth_grey"],
@@ -270,17 +282,15 @@ static func _living(a: Apartment) -> void:
 	_p(a, c, Vector3(1.5, 0.6, -6.55), Vector3(0.4, 0.16, 0.3), "cloth_blue", -0.4, false)           # a jacket
 	a.use_point("sofa", "Sit down", Vector3(2.0, 0.9, 1.0), Vector3(1.0, 0.45, -6.5))
 	_table(a, c, Vector3(1.0, 0, -7.9), 1.0, 0.55, 0.42, "dark_wood")                               # coffee table, strewn
-	_p(a, c, Vector3(0.8, 0.45, -7.9), Vector3(0.36, 0.05, 0.32), "cloth_red", 0.2, false)          # pizza box
+	a.place_model("pizza_box", c, Vector3(0.75, 0.42, -7.9), 0.6)                                    # pizza box
 	_rotten_plate(a, c, Vector3(1.25, 0.43, -7.85), 3)
 	_bottles(a, c, Vector3(1.0, 0.43, -7.9), 3, Vector2(0.3, 0.1), 31, 0.6)
 	_rug(a, c, Vector3(1.0, 0, -7.6), 2.4, 1.8, "cloth_blue")
-	_p(a, c, Vector3(-0.75, 0.95, -8.6), Vector3(0.3, 1.9, 1.1), "dark_wood")                         # bookshelf
-	for i in 4:
-		_books(a, c, Vector3(-0.75, 0.2 + float(i) * 0.42, -9.1), Vector3(0, 0, 1), 12, 0.3, 0.22, i)
+	a.place_model("bookshelf", c, Vector3(-0.78, 0.0, -8.6), -PI / 2.0)                             # bookshelf, books facing east
+	a.collider(Vector3(-0.78, 0.95, -8.6), Vector3(0.3, 1.9, 1.1))
 	_table(a, c, Vector3(3.4, 0, -9.15), 1.3, 0.6, 0.74, "dark_wood")                                # desk under the north window
 	_chair(a, c, Vector3(3.4, 0, -8.55), 0.0)
-	_p(a, c, Vector3(3.3, 0.77, -9.15), Vector3(0.32, 0.02, 0.22), "metal", 0.0, false)              # laptop
-	_p(a, c, Vector3(3.3, 0.92, -9.28), Vector3(0.32, 0.22, 0.02), "black", 0.0, false)
+	a.place_model("laptop", c, Vector3(3.3, 0.74, -9.15), PI)                                        # laptop
 	for i in 6:
 		_p(a, c, Vector3(3.75 + float(i % 3) * 0.04, 0.77 + float(i) * 0.008, -9.1), Vector3(0.22, 0.008, 0.3), "paper", float(i) * 0.5, false)   # job applications
 	a.use_point("laptop", "Use the laptop", Vector3(0.9, 0.5, 0.7), Vector3(3.4, 0.9, -9.1))
@@ -318,9 +328,7 @@ static func _living(a: Apartment) -> void:
 static func _hall(a: Apartment) -> void:
 	var c := "hall"                                       # x[-6.29,-1.06] z[-5.54,-4.26]
 	_p(a, c, Vector3(-6.05, 0.37, -4.9), Vector3(0.4, 0.74, 0.6), "dark_wood")                       # phone table
-	_p(a, c, Vector3(-6.05, 0.78, -4.9), Vector3(0.26, 0.08, 0.22), "black", 0.0, false)             # answering machine
-	_p(a, c, Vector3(-6.03, 0.85, -4.78), Vector3(0.22, 0.04, 0.07), "black", 0.0, false)            # handset
-	_p(a, c, Vector3(-6.07, 0.84, -4.98), Vector3(0.04, 0.012, 0.04), "cloth_red", 0.0, false)       # the message light
+	a.place_model("phone", c, Vector3(-6.05, 0.74, -4.9), -PI / 2.0)                                 # phone and answering machine
 	a.use_point("phone", "The phone", Vector3(0.6, 0.6, 0.8), Vector3(-6.0, 0.8, -4.9))
 	_rug(a, c, Vector3(-3.6, 0, -4.9), 3.4, 0.8, "cloth_red")
 	_picture(a, c, Vector3(-2.2, 1.5, -5.54), Vector3(0, 0, 1), 0.5, 0.35, "cloth_blue")
@@ -333,16 +341,14 @@ static func _hall(a: Apartment) -> void:
 
 static func _bath(a: Apartment) -> void:
 	var c := "bath"                                       # x[-6.29,-3.86] z[-4.14,-1.71]
-	_p(a, c, Vector3(-5.44, 0.28, -2.085), Vector3(1.7, 0.56, 0.75), "white")                        # tub
-	_p(a, c, Vector3(-5.44, 0.57, -2.085), Vector3(1.55, 0.02, 0.6), "chrome", 0.0, false)
-	_p(a, c, Vector3(-4.7, 0.75, -2.0), Vector3(0.12, 0.04, 0.04), "chrome", 0.0, false)             # taps
+	a.place_model("tub", c, Vector3(-5.44, 0.0, -2.085), PI)                                         # tub (taps toward the room's east end)
+	a.collider(Vector3(-5.44, 0.28, -2.085), Vector3(1.7, 0.56, 0.75))
 	_p(a, c, Vector3(-5.44, 1.3, -2.5), Vector3(1.55, 1.7, 0.02), "sheet", 0.0, false)               # shower curtain, drawn
 	a.cyl(Vector3(-5.44, 2.15, -2.5), 0.012, 1.6, "chrome", a.layer_of(c), -1.0, 6)
-	_p(a, c, Vector3(-5.98, 0.2, -3.2), Vector3(0.5, 0.4, 0.36), "white")                            # toilet
-	_p(a, c, Vector3(-6.2, 0.62, -3.2), Vector3(0.16, 0.44, 0.38), "white", 0.0, false)
-	_p(a, c, Vector3(-5.96, 0.43, -3.2), Vector3(0.44, 0.03, 0.38), "white", 0.0, false)
-	_p(a, c, Vector3(-4.05, 0.82, -3.6), Vector3(0.4, 0.12, 0.5), "white")                           # basin
-	_p(a, c, Vector3(-4.05, 0.4, -3.6), Vector3(0.12, 0.8, 0.12), "white", 0.0, false)
+	a.place_model("toilet", c, Vector3(-5.9, 0.0, -3.2), -PI / 2.0)                                  # toilet, facing east
+	a.collider(Vector3(-5.98, 0.3, -3.2), Vector3(0.5, 0.6, 0.38))
+	a.place_model("sink", c, Vector3(-4.1, 0.0, -3.6), PI / 2.0)                                     # basin on its pedestal, facing west
+	a.collider(Vector3(-4.05, 0.45, -3.6), Vector3(0.4, 0.9, 0.5))
 	_p(a, c, Vector3(-3.92, 1.58, -3.6), Vector3(0.1, 0.8, 0.55), "dark_wood", 0.0, false)           # medicine cabinet
 	_p(a, c, Vector3(-3.87, 1.58, -3.6), Vector3(0.03, 0.72, 0.47), "glass", 0.0, false)
 	a.use_point("pills", "The medicine cabinet", Vector3(0.5, 0.9, 0.7), Vector3(-3.95, 1.5, -3.6))
@@ -362,8 +368,8 @@ static func _storage(a: Apartment) -> void:
 	_boxes(a, c, Vector3(-3.5, 0, -2.5), 3, 1, Vector3(0.45, 0.32, 0.4))
 	_boxes(a, c, Vector3(-3.0, 0, -1.95), 2, 3, Vector3(0.4, 0.3, 0.34))
 	a.use_point("dad_boxes", "Dad's things", Vector3(0.9, 1.1, 2.2), Vector3(-3.5, 0.5, -3.0))
-	_p(a, c, Vector3(-1.45, 0.4, -2.2), Vector3(0.9, 0.8, 0.85), "leather", 0.7)                      # his armchair
-	_p(a, c, Vector3(-1.3, 0.78, -2.3), Vector3(0.25, 0.5, 0.85), "leather", 0.7, false)
+	a.place_model("armchair", c, Vector3(-1.45, 0.0, -2.2), 0.7)                                      # his armchair
+	a.collider(Vector3(-1.45, 0.4, -2.2), Vector3(0.9, 0.8, 0.85), 0.7)
 	a.blob_shadow(c, Vector3(-1.45, 0, -2.2), 1.3, 1.3)
 	_p(a, c, Vector3(-3.5, 1.1, -3.0), Vector3(0.3, 0.18, 0.12), "black", 0.3, false)                # his radio, on the boxes
 	_picture(a, c, Vector3(-1.06, 1.55, -2.9), Vector3(-1, 0, 0), 0.5, 0.4, "paper")                 # family photo
@@ -380,9 +386,8 @@ static func _bed1(a: Apartment) -> void:
 	a.cyl(Vector3(-3.75, 0.62, -9.2), 0.05, 0.2, "brass", a.layer_of(c), 0.03, 8)                     # bedside lamp
 	a.cyl(Vector3(-3.75, 0.82, -9.2), 0.1, 0.16, "lampshade", a.layer_of(c), 0.07, 10)
 	_bottles(a, c, Vector3(-3.75, 0.5, -8.9), 2, Vector2(0.05, 0.1), 41, 1.0)
-	_p(a, c, Vector3(-5.99, 1.0, -6.4), Vector3(0.6, 2.0, 1.2), "dark_wood")                          # wardrobe
-	_p(a, c, Vector3(-5.68, 1.0, -6.1), Vector3(0.02, 0.5, 0.02), "brass", 0.0, false)
-	_p(a, c, Vector3(-5.68, 1.0, -6.7), Vector3(0.02, 0.5, 0.02), "brass", 0.0, false)
+	a.place_model("wardrobe_1_2x0_6", c, Vector3(-5.99, 0.0, -6.4), -PI / 2.0)                        # wardrobe, doors facing east
+	a.collider(Vector3(-5.99, 1.0, -6.4), Vector3(0.6, 2.0, 1.2))
 	a.use_point("wardrobe", "The wardrobe", Vector3(0.8, 2.0, 1.4), Vector3(-5.95, 1.0, -6.4))
 	_rug(a, c, Vector3(-4.85, 0, -6.4), 1.8, 1.1, "cloth_blue")
 	_litter(a, c, Vector3(-4.6, 0, -6.2), 8, 0.7, 2)

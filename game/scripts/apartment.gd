@@ -513,13 +513,19 @@ func _make_window(o: Dictionary, axis: String, fixed: float, t: float, neg: Stri
 		box(_wp(axis, fixed, c + e * (w * 0.5 + 0.02), cy, off + side * 0.02), sz.call(bar, 0.05, h), f, {}, false)  # jambs
 	box(_wp(axis, fixed, c, cy, off - side * 0.02), sz.call(0.035, 0.04, h), f, {}, false)                        # mullion
 	box(_wp(axis, fixed, c, cy, off - side * 0.02), sz.call(w, 0.04, 0.035), f, {}, false)                        # transom
-	if sill >= 0.85 and w >= 0.8:                                                                              # radiator
-		box(_wp(axis, fixed, c, 0.38, off + side * 0.06), sz.call(minf(w, 1.2), 0.09, 0.5), ["white", layer], {}, false)
+	var yaw_in := atan2(-n.x, -n.z)                                                                            # turns a model's front (-Z) into the room
+	if sill >= 0.85 and w >= 0.8:                                                                              # radiator under the window
+		var rw := minf(w, 1.2)
+		if not model("radiator", _wp(axis, fixed, c, 0.08, off + side * 0.06), Basis(Vector3.UP, yaw_in) * Basis.from_scale(Vector3(rw, 1.0, 1.0)), layer):
+			box(_wp(axis, fixed, c, 0.38, off + side * 0.06), sz.call(rw, 0.09, 0.5), ["white", layer], {}, false)
 	if o["cur"]:
 		for e in [-1.0, 1.0]:
 			var cw := 0.34 if e < 0 else 0.42
-			box(_wp(axis, fixed, c + e * (w * 0.5 + 0.1 + cw * 0.5 - 0.04), (top + 0.25 + sill - 0.1) * 0.5, off + side * 0.09),
-				sz.call(cw, 0.07, top + 0.25 - sill + 0.1), ["curtain", layer], {}, false)
+			var ch := top + 0.25 - sill + 0.1
+			var cp := _wp(axis, fixed, c + e * (w * 0.5 + 0.1 + cw * 0.5 - 0.04), sill - 0.1, off + side * 0.08)
+			if not model("curtain", cp, Basis(Vector3.UP, yaw_in) * Basis.from_scale(Vector3(cw, ch, 1.0)), layer):
+				box(_wp(axis, fixed, c + e * (w * 0.5 + 0.1 + cw * 0.5 - 0.04), (top + 0.25 + sill - 0.1) * 0.5, off + side * 0.09),
+					sz.call(cw, 0.07, ch), ["curtain", layer], {}, false)
 		box(_wp(axis, fixed, c, top + 0.2, off + side * 0.1), sz.call(w + 0.7, 0.03, 0.03), ["brass", layer], {}, false)
 
 
@@ -696,6 +702,11 @@ func add_flies(cell: String, pos: Vector3, count := 14, radius := 0.28) -> Flies
 ## A furniture box in a room's layer.
 func prop(cell: String, center: Vector3, size: Vector3, mat: String, yaw := 0.0, collide := true) -> void:
 	box(center, size, [mat, layer_of(cell)], {}, collide, yaw)
+
+
+## A Blender model in a room's layer; `yaw` turns it, `extra` is any further rotation (a bottle on its side).
+func place_model(model_name: String, cell: String, pos: Vector3, yaw := 0.0, extra := Basis.IDENTITY, scale := Vector3.ONE) -> bool:
+	return model(model_name, pos, Basis(Vector3.UP, yaw) * extra * Basis.from_scale(scale), layer_of(cell))
 
 
 ## A soft dark blotch (water stain, grime) lying on a wall, ceiling or floor.

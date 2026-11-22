@@ -111,6 +111,69 @@ func quad(center: Vector3, normal: Vector3, up: Vector3, w: float, h: float, mat
 		st.add_vertex(pts[i])
 
 
+## Meshes from res://assets/models/props (built in Blender, see tools/blender): vertex-coloured, merged straight into
+## the room's batches so they cost no extra draw calls. Cached as raw arrays so no resource stays loaded.
+static var _models := {}
+
+
+static func _model_data(model_name: String) -> Array:
+	if _models.has(model_name):
+		return _models[model_name]
+	var out: Array = []
+	var path := "res://assets/models/props/%s.glb" % model_name
+	if ResourceLoader.exists(path):
+		var inst := (load(path) as PackedScene).instantiate()
+		for mi in inst.find_children("*", "MeshInstance3D", true, false):
+			var xf := Transform3D()
+			var n: Node = mi
+			while n and n != inst:
+				xf = (n as Node3D).transform * xf
+				n = n.get_parent()
+			var mesh: Mesh = (mi as MeshInstance3D).mesh
+			for sidx in mesh.get_surface_count():
+				var arr := mesh.surface_get_arrays(sidx)
+				var mat := mesh.surface_get_material(sidx)
+				var group := "g_" + (mat.resource_name if mat and mat.resource_name != "" else "matte")
+				if not (group in ["g_matte", "g_gloss", "g_metal"]):
+					group = "g_matte"
+				out.append({"group": group, "v": arr[Mesh.ARRAY_VERTEX], "n": arr[Mesh.ARRAY_NORMAL], "c": arr[Mesh.ARRAY_COLOR], "i": arr[Mesh.ARRAY_INDEX], "xf": xf})
+		inst.free()
+	_models[model_name] = out
+	return out
+
+
+## Adds a model at `center`, turned by `basis`. Returns false (and adds nothing) if the model is missing.
+func model(model_name: String, center: Vector3, basis: Basis, layer: int) -> bool:
+	var data := _model_data(model_name)
+	if data.is_empty():
+		return false
+	for s in data:
+		var st := _surface(s["group"], layer)
+		var xf: Transform3D = s["xf"]
+		var nb := basis * xf.basis
+		var verts: PackedVector3Array = s["v"]
+		var norms: PackedVector3Array = s["n"]
+		var cols = s["c"]
+		var idx: PackedInt32Array = s["i"]
+		for k in idx.size():
+			var vi := idx[k]
+			st.set_color(cols[vi] if cols is PackedColorArray else Color(0.5, 0.5, 0.5))
+			st.set_normal((nb * norms[vi]).normalized())
+			st.set_uv(Vector2.ZERO)
+			st.add_vertex(center + basis * (xf * verts[vi]))
+	return true
+
+
+## Invisible collision for a prop.
+func collider(center: Vector3, size: Vector3, yaw := 0.0) -> void:
+	var shape := CollisionShape3D.new()
+	var bs := BoxShape3D.new()
+	bs.size = size
+	shape.shape = bs
+	shape.transform = Transform3D(Basis(Vector3.UP, yaw), center)
+	_body.add_child(shape)
+
+
 ## A lumpy ball (a bag of rubbish): a squashed sphere, `squash` flattens it, `lump` wobbles the surface.
 func ball(center: Vector3, radius: float, mat_key: String, layer: int, squash := 0.8, lump := 0.12, seed_i := 1, segs := 10, rings := 6) -> void:
 	var st := _surface(Mats.batch_key(mat_key), layer)
