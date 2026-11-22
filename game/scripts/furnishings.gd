@@ -12,6 +12,7 @@ static func furnish(a: Apartment) -> void:
 	_storage(a)
 	_bed1(a)
 	_bed2(a)
+	_anomalies(a)
 	_spots(a)
 
 
@@ -125,6 +126,7 @@ static func _plant(a: Apartment, cell: String, c: Vector3, dead := true) -> void
 static func _floor_lamp(a: Apartment, cell: String, c: Vector3, color := Color(1.0, 0.72, 0.45), energy := 0.45) -> void:
 	var layer := a.layer_of(cell)
 	a.place_model("floor_lamp", cell, c, 0.0)
+	a.collider(c + Vector3(0, 0.85, 0), Vector3(0.36, 1.7, 0.36))                                    # you cannot walk into a lamp
 	var light := OmniLight3D.new()
 	light.position = c + Vector3(0, 1.5, 0)
 	light.light_color = color
@@ -207,7 +209,7 @@ static func _entry(a: Apartment) -> void:
 		a.place_model("shoes", c, Vector3(-0.78, 0.34, -2.0 + float(i) * 0.26), float(i) * 0.6 + 1.5)
 	_p(a, c, Vector3(-0.9, 1.55, -1.1), Vector3(0.04, 0.04, 0.5), "brass", 0.0, false)               # hooks
 	a.hang_ok("coat on its hook", Vector3(-0.84, 1.0, -1.1), "x", 0.15, 0.4, 1.6)
-	a.make_movable("coat", c, Vector3(-0.84, 1.0, -1.1), [[Vector3.ZERO, Vector3(0.1, 1.1, 0.3), "cloth_grey"], [Vector3(0, 0.5, 0.0), Vector3(0.12, 0.08, 0.2), "cloth_grey"]])   # Martin's coat
+	a.make_movable("coat", c, Vector3(-0.84, 1.0, -1.1), [[Vector3.ZERO, Vector3(0.1, 1.1, 0.3), "cloth_red"], [Vector3(0, 0.5, 0.0), Vector3(0.12, 0.08, 0.2), "cloth_red"]])   # Martin's red coat
 	_p(a, c, Vector3(0.1, 0.007, -0.32), Vector3(0.8, 0.014, 0.45), "cloth_grey", 0.0, false)        # doormat
 	for i in 7:                                                                                     # the mail, piled up by the door
 		_p(a, c, Vector3(0.55 + float(i % 3) * 0.08, 0.012 + float(i) * 0.006, -0.55 + sin(float(i)) * 0.07), Vector3(0.22, 0.004, 0.14), "paper", float(i) * 0.7, false)
@@ -308,7 +310,7 @@ static func _living(a: Apartment) -> void:
 	a.cyl(Vector3(3.9, 0.84, -5.55), 0.09, 0.16, "metal", layer, -1.0, 10)                            # a pot with a skin of mould
 	a.cyl(Vector3(3.9, 0.925, -5.55), 0.08, 0.02, "mold", layer, -1.0, 10)
 	_bottles(a, c, Vector3(4.0, 0.75, -5.5), 5, Vector2(0.3, 0.6), 32, 0.7)
-	a.use_point("dining_food", "Look at the table", Vector3(1.0, 0.5, 1.6), Vector3(3.9, 0.9, -5.5))
+	a.use_point("dining_food", "Look at the table", Vector3(0.6, 0.5, 1.6), Vector3(3.7, 0.9, -5.5))
 	a.add_flies(c, Vector3(3.9, 1.0, -5.5), 22, 0.4)
 	a.add_flies(c, Vector3(1.2, 0.8, -7.4), 8, 0.22)
 	_floor_lamp(a, c, Vector3(2.4, 0, -6.9))
@@ -414,6 +416,65 @@ static func _bed2(a: Apartment) -> void:
 	_picture(a, c, Vector3(-3.34, 1.6, -8.8), Vector3(1, 0, 0), 0.5, 0.7, "cloth_red")                # poster
 	_litter(a, c, Vector3(-2.3, 0, -6.3), 3, 0.4, 4)
 	a.stain(c, Vector3(-2.2, 2.49, -7.5), Vector3(0, -1, 0), 1.4)
+
+
+## The things that are out of place on particular days (see Days.ANOMALY). All hidden until a day asks for them;
+## none has a collider, so they sit along walls and never in the way.
+static func _anomalies(a: Apartment) -> void:
+	# a dining chair outside his bedroom door, facing it
+	var chair: Array = []
+	var cm := "dark_wood"
+	chair.append([Vector3(0, 0.45, 0), Vector3(0.42, 0.04, 0.42), cm])
+	chair.append([Vector3(0, 0.72, 0.19), Vector3(0.42, 0.5, 0.04), cm])
+	for sx in [-1.0, 1.0]:
+		for sz in [-1.0, 1.0]:
+			chair.append([Vector3(sx * 0.18, 0.22, sz * 0.18), Vector3(0.04, 0.44, 0.04), cm])
+	a.make_movable("hall_chair", "hall", Vector3(-4.9, 0.0, -4.5), chair, 0.0, false)
+	# grey bare footprints from his bedroom door, down the hall, to the living room
+	var prints: Array = []
+	var path := [Vector3(-4.9, 0, -5.45), Vector3(-4.9, 0, -4.9), Vector3(-1.0, 0, -4.9), Vector3(0.1, 0, -5.8), Vector3(0.15, 0, -7.35)]
+	var side := 1.0
+	for i in path.size() - 1:
+		var from: Vector3 = path[i]
+		var to: Vector3 = path[i + 1]
+		var dir := (to - from)
+		var length := dir.length()
+		var n := int(length / 0.55)
+		for k in n:
+			var p := from + dir * ((float(k) + 0.5) / float(n))
+			var along_x := absf(dir.x) > absf(dir.z)
+			var off := Vector3(0, 0, side * 0.09) if along_x else Vector3(side * 0.09, 0, 0)
+			var fwd := dir.normalized()
+			var q := p + off + Vector3(0, 0.008, 0)
+			var ball := Vector3(0.1, 0.006, 0.12) if along_x else Vector3(0.12, 0.006, 0.1)
+			var heel := Vector3(0.07, 0.006, 0.07)
+			prints.append([q + fwd * 0.07, ball, "paper"])                    # the ball of the foot
+			prints.append([q - fwd * 0.1, heel, "paper"])                     # the heel, with a gap of bare floor between
+			side = -side
+	a.make_movable("prints", "hall", Vector3.ZERO, prints, 0.0, false)
+	# his coat on the floor inside the front door
+	a.make_movable("coat_floor", "entry", Vector3(0.15, 0.0, -0.45), [
+		[Vector3(0, 0.05, 0), Vector3(0.62, 0.1, 0.42), "cloth_red"], [Vector3(0.28, 0.04, 0.2), Vector3(0.5, 0.08, 0.14), "cloth_red"],
+		[Vector3(-0.22, 0.04, 0.24), Vector3(0.1, 0.07, 0.5), "cloth_red"]], 0.3, false)
+	# Dad's boxes, opened and spilled across the storage room floor
+	var boxes: Array = []
+	for i in 7:
+		boxes.append([Vector3(sin(float(i) * 2.1) * 0.5, 0.1 + float(i % 2) * 0.1, cos(float(i) * 1.7) * 0.4), Vector3(0.34 + 0.06 * float(i % 3), 0.2, 0.3), "cardboard"])
+		boxes.append([Vector3(sin(float(i) * 1.3 + 1.0) * 0.7, 0.012, cos(float(i) * 2.3) * 0.55), Vector3(0.24, 0.012, 0.32), "paper"])
+	a.make_movable("boxes_out", "storage", Vector3(-2.45, 0.0, -3.0), boxes, 0.0, false)
+	# the tub has run over: a wide dark pool of water on the tiles
+	a.make_movable("tub_water", "bath", Vector3(-4.8, 0.0, -2.75), [
+		[Vector3(0, 0.007, 0), Vector3(1.9, 0.01, 1.1), "black"], [Vector3(0.6, 0.007, 0.3), Vector3(0.9, 0.01, 0.8), "black"]], 0.0, false)
+	# his coat, folded, on Jack's bed
+	a.make_movable("coat_bed", "bed2", Vector3(-1.55, 0.0, -7.9), [
+		[Vector3(0, 0.6, 0), Vector3(0.5, 0.12, 0.7), "cloth_red"], [Vector3(0, 0.67, 0.1), Vector3(0.44, 0.05, 0.3), "cloth_red"]], 0.0, false)
+	# the dining table set for two: clean white plates, cups, and a note
+	a.make_movable("table_set", "living", Vector3(3.9, 0.0, -5.5), [
+		[Vector3(-0.25, 0.775, -0.2), Vector3(0.26, 0.025, 0.26), "white"], [Vector3(-0.25, 0.775, 0.22), Vector3(0.26, 0.025, 0.26), "white"],
+		[Vector3(-0.05, 0.81, -0.2), Vector3(0.09, 0.09, 0.09), "white"], [Vector3(-0.05, 0.81, 0.22), Vector3(0.09, 0.09, 0.09), "white"],
+		[Vector3(0.25, 0.763, 0.0), Vector3(0.2, 0.003, 0.28), "paper"]], 0.0, false)
+	a.use_point("note", "Pick up the note", Vector3(0.4, 0.4, 0.5), Vector3(4.2, 0.8, -5.5))
+	a.set_use("note", false)
 
 
 static func _spots(a: Apartment) -> void:

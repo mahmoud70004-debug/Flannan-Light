@@ -97,6 +97,8 @@ func _run() -> void:
 	cap.radius = 0.27
 	cap.height = 1.7
 	for name in spots:
+		if name == "wake_bed2":
+			continue                                   # a doorway: checked with the doors open
 		var p: Vector3 = spots[name][0]
 		var q := PhysicsShapeQueryParameters3D.new()
 		q.shape = cap
@@ -181,6 +183,7 @@ func _run() -> void:
 	await _walk_openings(flat)
 	await _reachability(flat)
 	await _use_points_work(flat)
+	await _furniture_checks(flat)
 	flat.queue_free()
 	await process_frame
 
@@ -322,13 +325,12 @@ func _reachability(flat) -> void:
 		flat.doors[d].set_open(false, false)
 
 
-const KNOWN_NIGHT := ["footsteps_door", "knock_front", "whisper_bed", "stranger_bed", "stranger_hall"]
 
 
 func _check_story_content(flat) -> void:
 	var director = (load("res://scripts/director.gd") as GDScript).new()
 	var valid_ids: Array = flat.use_points.keys() + [Days.PHOTO_STEP, "bed1"]
-	var sounds := ["step_0", "step_3", "cough_0", "cough_1", "knock3", "knock1", "knock3_front", "switch", "door_creak", "lamp_buzz", "breath", "whisper_0", "whisper_4", "laugh_0", "laugh_1", "tv_static", "phone_ring", "handset", "machine_new", "machine_end", "machine_beep", "shutter", "click", "drip", "heartbeat", "drone", "room_tone", "street", "fridge_hum", "flies_loop", "jack_greeting", "greeting", "vm0"]
+	var sounds := ["step_0", "step_3", "cough_0", "cough_1", "knock3", "knock1", "knock3_front", "switch", "door_creak", "lamp_buzz", "breath", "whisper_0", "whisper_4", "laugh_0", "laugh_1", "tv_static", "phone_ring", "handset", "machine_new", "machine_end", "machine_beep", "shutter", "click", "drip", "heartbeat", "drone", "room_tone", "street", "fridge_hum", "flies_loop", "jack_greeting", "greeting", "vm0", "tap_run", "chair_scrape", "chain_rattle", "dial_tone", "whisper_0"]
 	for n in sounds:
 		_check(Audio.stream(n) != null, "sound '%s' exists" % n)
 	for i in range(1, Days.COUNT + 1):
@@ -347,14 +349,50 @@ func _check_story_content(flat) -> void:
 			_check(director.has_method("_ev_" + s["do"]), "day %d: scripted event '%s' exists" % [i, s["do"]])
 		for e in d["events"]["pool"]:
 			_check(director.has_method("_ev_" + e), "day %d: random event '%s' exists" % [i, e])
-		for n in d["night"]:
-			_check(n in KNOWN_NIGHT, "day %d: night event '%s' exists" % [i, n])
+		_check(Apartment.WAKE.has(d["wake"]), "day %d: he wakes at a real place (%s)" % [i, d["wake"]])
+		for room in d["lit"]:
+			_check(flat.lamps.has(room), "day %d: room '%s' has a lamp to start lit" % [i, room])
+		for id in d["anomalies"]:
+			_check(Days.ANOMALY.has(id) and Days.ANOMALY[id]["evidence"] != "" and not (Days.ANOMALY[id]["lines"] as Array).is_empty(), "day %d: anomaly '%s' is defined" % [i, id])
+			_check(flat.movables.has(id) or id in ["door_bed1", "kitchen_light", "all_lit"], "day %d: anomaly '%s' has something to see" % [i, id])
+		var night: Dictionary = d["night"]
+		if not night.is_empty():
+			_check(night["cue"] in ["tap", "knock", "chair", "phone", "breath", "clock", "steps", "tv", "chain"], "day %d: night cue '%s' exists" % [i, night["cue"]])
+			_check(night["target"] in valid_ids and night["found"].size() > 0 and night["evidence"] != "", "day %d: the night's target '%s' is something in the flat" % [i, night["target"]])
+			_check(night["stranger"] in ["", "hall", "living", "bed2"], "day %d: the night's figure is placed in a real room" % i)
+			_check((i <= 2) == (not night["dark"]), "day %d: the first two nights teach (light), the rest are dark" % i)
+		_check(d["tasks"][-1]["id"] == "lock_up" or d.get("final", false), "day %d ends with locking up (the rules are the routine)" % i)
 		_check(d["fear"] >= 0.0 and d["fear"] <= 1.0 and d["flies"] >= 0.0, "day %d: fear and flies are in range" % i)
+	var last_fear := 0.0
+	for i in range(1, Days.COUNT + 1):                  # the dread only climbs, and never by more than a step
+		var f: float = Days.get_day(i)["fear"]
+		_check(f > last_fear and f - last_fear <= 0.12, "day %d: fear rises by a step (%.2f to %.2f)" % [i, last_fear, f])
+		last_fear = f
 	for id in Days.EXAMINE:
 		_check(id in valid_ids, "examine text is for a real prop: %s" % id)
 	for k in Docs.LIST:
 		_check(Docs.LIST[k]["body"].length() > 20, "document %s has text" % k)
 	director.free()
+
+
+## The night: wake at 3:07, hear the sound, go to the thing, find it, go back to bed.
+func _bot_night(story, hud, data: Dictionary) -> void:
+	var n: Dictionary = data["night"]
+	var t0 := Time.get_ticks_msec()
+	while (story._phase != "night" or hud.objective_text() != str(n["obj"])) and (Time.get_ticks_msec() - t0) < 90000:
+		await process_frame
+		if hud.doc_open:
+			hud.close_doc()
+	_check(story._phase == "night" and hud.objective_text() == str(n["obj"]), "night %d: he wakes at 3:07 and the objective is '%s'" % [gs.day, n["obj"]])
+	story.on_used("bed1")                               # not yet: he wants to know what that was
+	await process_frame
+	_check(not story._night_found, "night %d: he will not go back to sleep before he has looked" % gs.day)
+	await _bot_use(story, hud, str(n["target"]))
+	_check(story._night_found and gs.has_evidence("night_%d" % gs.day), "night %d: finding it goes in the notebook" % gs.day)
+	t0 = Time.get_ticks_msec()
+	while hud.objective_text() != "Go back to bed" and (Time.get_ticks_msec() - t0) < 30000:
+		await process_frame
+	story.on_used("bed1")
 
 
 ## A bot plays the whole game at ten times speed: every day's tasks, every random event once, the
@@ -400,6 +438,8 @@ func _playthrough() -> void:
 			await process_frame
 		_check(director.all_scripted_fired(), "day %d: every scripted event fires" % day)
 		story.on_used("bed1")
+		if not (data["night"] as Dictionary).is_empty():
+			await _bot_night(story, hud, data)
 		var waited := 0.0
 		var t0 := Time.get_ticks_msec()
 		while (gs.day != day + 1 or not story.is_free()) and waited < 120.0:
@@ -488,11 +528,65 @@ func _exercise_menu(w) -> void:
 		st.save()
 
 
+## Anything big the player can see has something solid under it, and solid things do not sink into each other.
+func _furniture_checks(flat) -> void:
+	await physics_frame
+	var space := root.get_world_3d().direct_space_state
+	var probe := SphereShape3D.new()
+	probe.radius = 0.05
+	var q := PhysicsShapeQueryParameters3D.new()
+	q.shape = probe
+	q.collision_mask = 1
+	var cap := CapsuleShape3D.new()
+	cap.radius = 0.27
+	cap.height = 1.7
+	var wq := PhysicsShapeQueryParameters3D.new()
+	wq.shape = cap
+	wq.collision_mask = 1
+	for wid in Apartment.WAKE:
+		var wp: Vector3 = Apartment.WAKE[wid][0]
+		wq.transform = Transform3D(Basis(), wp + Vector3(0, 0.88, 0))
+		_check(space.intersect_shape(wq, 1).is_empty(), "he can wake at '%s' without standing inside anything" % wid)
+	var open_models: Array = []
+	for m in flat.placed_models:
+		var bb: AABB = m["aabb"]
+		if bb.size.x < 0.3 or bb.size.z < 0.3 or bb.size.y < 0.6 or m["name"] in ["curtain", "radiator"]:
+			continue
+		var hit := false
+		var y := 0.08
+		while y < minf(bb.end.y, 1.9) and not hit:
+			q.transform = Transform3D(Basis(), Vector3(bb.get_center().x, y, bb.get_center().z))
+			hit = not space.intersect_shape(q, 1).is_empty()
+			y += 0.1
+		if not hit:
+			open_models.append("%s at (%.1f, %.1f)" % [m["name"], bb.get_center().x, bb.get_center().z])
+	_check(open_models.is_empty(), "every large model has a collider under it %s" % [open_models])
+	# Solid boxes (not walls) must not sink into each other
+	var boxes: Array = []
+	for n in flat._body.get_children():
+		var cs := n as CollisionShape3D
+		if cs and cs.shape is BoxShape3D:
+			var size: Vector3 = (cs.shape as BoxShape3D).size
+			if size.y > 2.3 or maxf(size.x, size.z) > 6.0:
+				continue                                  # walls and slabs
+			boxes.append(cs.transform * AABB(-size * 0.5, size))
+	var clashes: Array = []
+	for i in boxes.size():
+		for j in range(i + 1, boxes.size()):
+			var a: AABB = boxes[i]
+			var b: AABB = boxes[j]
+			var inter := a.intersection(b)
+			if inter.size.x > 0.12 and inter.size.z > 0.12 and inter.size.y > 0.15:
+				clashes.append("(%.1f, %.1f) %s / %s" % [inter.get_center().x, inter.get_center().z, a.size, b.size])
+	_check(clashes.is_empty(), "solid furniture does not sink into other furniture %s" % [clashes])
+
+
 ## Every prop the game uses can really be used: from somewhere the player can stand, looking at it, the
 ## interaction ray finds it (and not something else in front of it).
 func _use_points_work(flat) -> void:
 	for d in flat.doors:
 		flat.doors[d].set_open(true, false)
+	flat.set_use("note", true)                         # (it only exists on day 9)
 	var player = (load("res://scripts/player.gd") as GDScript).new()
 	root.add_child(player)
 	await physics_frame
@@ -549,7 +643,7 @@ func _voicemail_order() -> void:
 	gs.new_game()
 	gs.queue_vm("vm0")
 	gs.day = 4
-	gs.finish_task("eat")                               # the phone task comes second
+	gs.finish_task("photo")                             # the phone task comes second
 	await story.start_day()
 	await _wait_announce(story, "phone")
 	_check(gs.pending == ["vm0", "vm1"], "day 4: the old and the new message are waiting once the phone task begins")
@@ -560,6 +654,7 @@ func _voicemail_order() -> void:
 	gs.new_game()
 	gs.queue_vm("vm2")
 	gs.day = 7
+	gs.finish_task("pills")                             # the phone task comes second
 	await story.start_day()
 	await _wait_announce(story, "phone")
 	_check(not gs.is_done("phone"), "day 7: the phone task is not done before anyone answers")
@@ -590,21 +685,33 @@ func _pacing() -> void:
 	_check(story._task_timer > 20.0, "day 1 waits %.0f s before Martin thinks about the first task" % story._task_timer)
 	story.on_used("fridge")                             # something that is not the objective yet
 	await process_frame
-	_check(gs.step_index.get("eat", 0) == 0 and not gs.is_done("read_letter"), "nothing counts before the task is announced")
-	await _wait_announce(story, "read_letter")
-	_check(hud.objective_text() == Days.OBJ["mail"], "the first objective is '%s'" % hud.objective_text())
-	story.on_used("fridge")                             # a later task's step does nothing
+	_check(not gs.is_done("rules"), "nothing counts before the task is announced")
+	await _wait_announce(story, "rules")
+	_check(hud.objective_text() == "Go to the kitchen", "the first objective is '%s'" % hud.objective_text())
+	story.on_used("mail")                               # a later task's step does nothing
 	await process_frame
-	_check(gs.step_index.get("eat", 0) == 0, "only the current task accepts steps")
-	await _bot_use(story, hud, "mail")
-	_check(gs.is_done("read_letter"), "the letter is done")
+	_check(gs.step_index.get("read_letter", 0) == 0 and not gs.is_done("read_letter"), "only the current task accepts steps")
+	await _bot_use(story, hud, "fridge")
+	_check(gs.is_done("rules"), "Dr. Hale's sheet is read")
 	_check(hud.objective_text() == "" and story._task_timer > 20.0, "a quiet stretch follows a task (%.0f s)" % story._task_timer)
 	var listed: Array = story._task_list(Days.get_day(1))
 	_check(listed.size() == 2, "Martin's list shows what is done and what is next, not the whole day (%d lines)" % listed.size())
-	await _wait_announce(story, "eat")
-	_check(hud.objective_text() == Days.OBJ["fridge"], "eat starts in the kitchen: '%s'" % hud.objective_text())
-	await _bot_use(story, hud, "fridge")
-	_check(hud.objective_text() == Days.OBJ["sofa"], "the objective moves on with the step: '%s'" % hud.objective_text())
+	await _wait_announce(story, "read_letter")
+	_check(hud.objective_text() == Days.OBJ["mail"], "the letter starts at the mail: '%s'" % hud.objective_text())
+	await _bot_use(story, hud, "mail")
+	await _wait_announce(story, "lock_up")
+	_check(hud.objective_text() == "Check the front door", "locking up is the last thing of the day: '%s'" % hud.objective_text())
+	# the notebook opens and lists what he has written down
+	var before: int = gs.evidence.size()
+	story._notice("door_bed1")
+	await process_frame
+	_check(gs.evidence.size() == before + 1 and gs.has_evidence("a_door_bed1"), "noticing something writes it in the notebook")
+	story._notice("door_bed1")
+	_check(gs.evidence.size() == before + 1, "the same thing is written down once")
+	story.open_notes()
+	await process_frame
+	_check(hud.doc_open, "the notes open")
+	hud.close_doc()
 	# every step of every task has an objective, and every task a thought
 	for d in Days.DATA:
 		for t in d["tasks"]:

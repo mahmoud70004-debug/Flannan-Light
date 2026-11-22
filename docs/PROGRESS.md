@@ -40,3 +40,12 @@ gets a merge when the user asks. Jack's voice: `am_onyx` (kokoro-onnx), more pau
 - Pacing: one task at a time with a thought and an objective, quiet stretches, events tied to progress (see `docs/features/daily-routine/design.md`).
 - Defaults: pixel filter MID, 360p, shadows on all.
 - Light switches you can find in the dark: an amber pilot light on every plate, a soft halo while the room is dark, a bigger touch area, the prompt "Light switch", and the click sound on every use.
+
+## Update v2: the story rebuilt around the flat itself
+- **Why:** two nights of play gave no fear and no sense of story. See `docs/STORY-BIBLE.md`.
+- **Anomalies:** each day something physical is out of place (a door open, a light on, a chair, footprints, a red coat, boxes, a flooded tub, a table set for two). Looking at one makes Martin notice it and write it in the notebook (NOTES button).
+- **Waking up elsewhere:** from day 4 he wakes standing in a different room each morning (TV, front door, storage, bath, Jack's doorway, the dining table).
+- **Playable nights:** 3:07 a.m., awake in the dark, a sound, find the cause, go back. From night 3 the hall light goes out; time in the dark builds dread; at full dread he loses time. Light is safe.
+- **Rules:** Dr. Hale's five rules (chain, door, hall light, tablets, write things down) are taught on day 1 and broken one by one.
+- **Less noise:** random events are gone, Martin explains almost nothing, the ending never says it was him.
+- Fixes: floor-lamp collider, tests for colliders under large models and for solid furniture sinking into each other, switch glow, objective flow.

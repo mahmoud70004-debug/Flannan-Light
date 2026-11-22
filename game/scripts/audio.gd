@@ -2,7 +2,7 @@ class_name Audio
 ## Sound lookup shared by everything that makes noise. Tests set `muted` so nothing is played
 ## (the headless audio driver never releases playbacks, which makes the engine complain at exit).
 
-const LOOPS := ["flies_loop", "room_tone", "fridge_hum", "drone", "heartbeat", "drip", "street", "phone_ring", "tv_static", "tick", "wind"]
+const LOOPS := ["tap_run", "dial_tone", "flies_loop", "room_tone", "fridge_hum", "drone", "heartbeat", "drip", "street", "phone_ring", "tv_static", "tick", "wind"]
 
 static var muted := false
 static var _cache := {}

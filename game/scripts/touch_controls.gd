@@ -27,7 +27,7 @@ var _look_index := -1
 var _ui_index := -1
 var _stick_base := Vector2.ZERO
 var _stick_knob := Vector2.ZERO
-var _labels := ["MENU", "TASKS", "PHOTO"]
+var _labels := ["MENU", "NOTES", "PHOTO"]
 var _last_pos := {}                ## finger index -> last absolute position (see _drag)
 var _use_mouse := false
 

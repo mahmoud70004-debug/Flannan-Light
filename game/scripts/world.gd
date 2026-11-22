@@ -209,7 +209,7 @@ func _build_ui() -> void:
 	_controls.menu_pressed.connect(_toggle_menu)
 	_controls.tasks_pressed.connect(func() -> void:
 		if _story.is_free():
-			_story.show_tasks(5.0))
+			_story.open_notes())
 	_controls.photo_pressed.connect(_story.take_photo)
 	_apartment.used.connect(_story.on_used)
 	_apartment.said.connect(_hud.say)

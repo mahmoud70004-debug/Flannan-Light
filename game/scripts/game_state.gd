@@ -7,7 +7,7 @@ signal task_done(id: String)
 signal flag_set(name: String)
 
 const PATH := "user://save.cfg"
-const VERSION := 1
+const VERSION := 2                    ## 2: the story was rebuilt around anomalies and nights; older saves are not loaded
 
 var day := 1
 var tasks_done: Array = []            ## task ids finished today
@@ -18,6 +18,7 @@ var play_seconds := 0.0               ## time played today (drives scripted even
 var pending: Array = []               ## voicemails waiting on the machine, in the order they arrived
 var heard: Array = []                 ## voicemails already played
 var ended := false
+var evidence: Array = []              ## Martin's notebook: [{id, day, text}] in the order he found them
 
 
 func new_game() -> void:
@@ -30,7 +31,24 @@ func new_game() -> void:
 	pending = []
 	heard = []
 	ended = false
+	evidence = []
 	day_changed.emit(day)
+
+
+## Writes something down in the notebook (once). Returns true the first time.
+func add_evidence(id: String, text: String) -> bool:
+	for e in evidence:
+		if e["id"] == id:
+			return false
+	evidence.append({"id": id, "day": day, "text": text})
+	return true
+
+
+func has_evidence(id: String) -> bool:
+	for e in evidence:
+		if e["id"] == id:
+			return true
+	return false
 
 
 ## A message arrives on the machine (once: never twice, never after it has been heard).
@@ -69,7 +87,10 @@ func next_day() -> void:
 
 
 func has_save() -> bool:
-	return FileAccess.file_exists(PATH)
+	if not FileAccess.file_exists(PATH):
+		return false
+	var cfg := ConfigFile.new()
+	return cfg.load(PATH) == OK and int(cfg.get_value("meta", "version", 0)) == VERSION
 
 
 func save() -> void:
@@ -83,6 +104,7 @@ func save() -> void:
 	cfg.set_value("state", "pending", pending)
 	cfg.set_value("state", "heard", heard)
 	cfg.set_value("state", "ended", ended)
+	cfg.set_value("state", "evidence", evidence)
 	cfg.save(PATH)
 
 
@@ -98,6 +120,7 @@ func load_game() -> bool:
 	pending = cfg.get_value("state", "pending", [])
 	heard = cfg.get_value("state", "heard", [])
 	ended = bool(cfg.get_value("state", "ended", false))
+	evidence = cfg.get_value("state", "evidence", [])
 	play_seconds = 0.0
 	day_changed.emit(day)
 	return true

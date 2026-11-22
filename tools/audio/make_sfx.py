@@ -153,4 +153,19 @@ mur = bp(sy, 200, 900) * np.clip(syl, 0, 1) ** 1.5 * (0.6 + 0.4 * np.sin(2 * np.
 save("murmur", reverb(lp(mur, 700), 0.5, 0.3), 0.45)
 bump = np.zeros(int(1.0 * SR)); place(bump, np.sin(2 * np.pi * np.cumsum(np.linspace(60, 38, int(0.4 * SR))) / SR) * env_exp(int(0.4 * SR), 0.1), 0.0)
 save("neighbor_bump", lp(bump, 200), 0.8)
+
+# --- v2: sounds for the nights (a tap, a chair, a chain, a dial tone) ---
+tp = bp(noise(4.0), 900, 7000) * (0.7 + 0.3 * np.abs(lp(noise(4.0), 18, 2)) * 6) + bp(noise(4.0), 150, 400) * 0.25
+save("tap_run", loopify(tp, 0.5), 0.5)
+n = int(1.1 * SR); cs = np.zeros(n); tcs = np.arange(n) / SR
+scr = bp(noise(1.1), 180, 1400) * (0.4 + 0.6 * np.abs(np.sin(2 * np.pi * 7 * tcs))) * np.sin(np.pi * np.arange(n) / n) ** 0.7
+scr += np.sin(2 * np.pi * np.cumsum(np.linspace(190, 95, n)) / SR) * 0.15 * np.sin(np.pi * np.arange(n) / n)
+save("chair_scrape", reverb(scr, 0.5, 0.2), 0.7)
+ch = np.zeros(int(1.4 * SR))
+for at, f in [(0.0, 3100), (0.17, 3900), (0.33, 3400), (0.62, 4300), (0.8, 3600), (1.05, 3000)]:
+    k = int(0.18 * SR); tk_ = np.arange(k) / SR
+    place(ch, (np.sin(2 * np.pi * f * tk_) * 0.5 + bp(noise(0.18), 2500, 9000) * 0.6) * env_exp(k, 0.03), at)
+save("chain_rattle", reverb(ch, 0.4, 0.15), 0.6)
+dt = (np.sin(2 * np.pi * 350 * t(3.0)) + np.sin(2 * np.pi * 440 * t(3.0))) * 0.5
+save("dial_tone", loopify(dt, 0.1), 0.35)
 print("sfx done:", sorted(os.listdir(OUT)))

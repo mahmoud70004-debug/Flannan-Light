@@ -142,11 +142,15 @@ static func _model_data(model_name: String) -> Array:
 	return out
 
 
+var placed_models: Array = []        ## [{name, aabb}] every model added, so tests can check it has a collider
+
 ## Adds a model at `center`, turned by `basis`. Returns false (and adds nothing) if the model is missing.
 func model(model_name: String, center: Vector3, basis: Basis, layer: int) -> bool:
 	var data := _model_data(model_name)
 	if data.is_empty():
 		return false
+	var lo := Vector3(1e9, 1e9, 1e9)
+	var hi := Vector3(-1e9, -1e9, -1e9)
 	for s in data:
 		var st := _surface(s["group"], layer)
 		var xf: Transform3D = s["xf"]
@@ -160,7 +164,11 @@ func model(model_name: String, center: Vector3, basis: Basis, layer: int) -> boo
 			st.set_color(cols[vi] if cols is PackedColorArray else Color(0.5, 0.5, 0.5))
 			st.set_normal((nb * norms[vi]).normalized())
 			st.set_uv(Vector2.ZERO)
-			st.add_vertex(center + basis * (xf * verts[vi]))
+			var wp := center + basis * (xf * verts[vi])
+			st.add_vertex(wp)
+			lo = lo.min(wp)
+			hi = hi.max(wp)
+	placed_models.append({"name": model_name, "aabb": AABB(lo, hi - lo)})
 	return true
 
 

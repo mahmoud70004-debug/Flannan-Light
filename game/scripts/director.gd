@@ -100,7 +100,7 @@ func update(delta: float) -> void:
 	_amb_next -= delta
 	if _amb_next <= 0.0 and _quiet <= 0.0:
 		var f := clampf(float(GameState.day - 1) / 9.0, 0.0, 1.0)
-		_amb_next = rng.randf_range(lerpf(70.0, 30.0, f), lerpf(130.0, 60.0, f))
+		_amb_next = rng.randf_range(lerpf(110.0, 60.0, f), lerpf(200.0, 110.0, f))
 		_ambient_bit()
 	if _busy or _quiet > 0.0 or _since < _min_gap():
 		return
@@ -152,7 +152,7 @@ func fire(event_name: String) -> void:
 
 ## Martin sometimes says something about what just happened (less and less as the days go on).
 func _react_later(event_name: String) -> void:
-	if story == null or story.hud == null or rng.randf() > 0.7:
+	if story == null or story.hud == null or rng.randf() > 0.4:
 		return
 	await _wait(rng.randf_range(0.9, 1.6))
 	var line := Days.react(event_name, GameState.day)

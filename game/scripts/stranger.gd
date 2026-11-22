@@ -108,7 +108,28 @@ func set_interactive(on: bool) -> void:
 	_body.collision_layer = 2 if on else 0
 
 
+var _sil_mat: StandardMaterial3D
+var _orig_mats := {}
+
+
+## In a dark room nothing lights it, so it would be invisible: it becomes a faint cold silhouette instead.
+func _apply_look() -> void:
+	if apartment == null:
+		return
+	var cell := apartment.cell_at(global_position)
+	var dark: bool = cell != "" and not apartment.room_lit(cell)
+	if _sil_mat == null:
+		_sil_mat = StandardMaterial3D.new()
+		_sil_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		_sil_mat.albedo_color = Color(0.1, 0.115, 0.16)
+	for p in _parts:
+		if not _orig_mats.has(p):
+			_orig_mats[p] = p.material_override
+		p.material_override = _sil_mat if (dark and not revealed) else _orig_mats[p]
+
+
 func _set_layers(mask: int) -> void:
+	_apply_look()
 	for p in _parts:
 		p.layers = mask
 	for f in _face_parts:

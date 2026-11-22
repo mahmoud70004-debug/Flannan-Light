@@ -986,6 +986,10 @@ func tv_position() -> Vector3:
 	return _tv.position if _tv else Vector3(1.0, 1.0, -9.2)
 
 
+func tv_is_on() -> bool:
+	return _tv != null and _tv.visible
+
+
 func set_tv(on: bool) -> void:
 	if _tv:
 		_tv.visible = on
@@ -1021,13 +1025,44 @@ func spawn_point() -> Vector3:
 	return Vector3(0.1, 0.05, -0.75)
 
 
-## Where Martin wakes up each morning: beside the bed, looking into the room.
+## Where Martin finds himself when a day begins: [position, yaw]. Mostly the bed; later, standing somewhere in the dark.
+const WAKE := {
+	"bed1": [Vector3(-4.55, 0.05, -6.25), 0.3, 0.0],
+	"tv": [Vector3(0.15, 0.05, -7.5), -0.45, -0.1],
+	"door": [Vector3(0.1, 0.05, -1.45), PI, -0.55],
+	"storage": [Vector3(-2.6, 0.05, -3.2), PI / 2.0, -0.35],
+	"bath": [Vector3(-4.6, 0.05, -3.0), PI, -0.6],
+	"bed2": [Vector3(-2.2, 0.05, -5.65), 0.0, -0.2],
+	"table": [Vector3(3.9, 0.05, -4.45), 0.0, -0.35],
+}
+
+
+func wake_spot(id: String) -> Array:
+	return WAKE.get(id, WAKE["bed1"])
+
+
 func wake_point() -> Vector3:
-	return Vector3(-4.55, 0.05, -6.25)
+	return WAKE["bed1"][0]
 
 
 func wake_yaw() -> float:
-	return 0.3
+	return WAKE["bed1"][1]
+
+
+## What is out of place today (see Days.ANOMALY): shows those objects and hides the rest, opens or closes the doors
+## that matter, and lights exactly the rooms the day starts with.
+func set_day_state(active: Array, lit: Array, all_open := false) -> void:
+	for id in movables:
+		if Days.ANOMALY.has(id):
+			set_movable_visible(id, id in active)
+	set_movable_visible("coat", not ("coat_floor" in active or "coat_bed" in active))
+	for d in doors:
+		var open_it: bool = all_open or (d == "bed1" and "door_bed1" in active) or (d == "bed2" and "coat_bed" in active)
+		(doors[d] as Door).set_open(open_it, false)
+	for c in lamps:
+		var room: String = "living" if c == "living_floor" else c
+		set_room_lit(c, room in lit or c in lit)
+	set_use("note", "table_set" in active)
 
 
 func spawn_yaw() -> float:
@@ -1043,7 +1078,7 @@ func _spot(pos: Vector3, target: Vector3) -> Array:
 
 ## Named viewpoints for look-dev and tests: name -> [position, yaw, pitch].
 func debug_spots() -> Dictionary:
-	return {
+	var spots_out := {
 		"door": _spot(Vector3(0.1, 0.05, -0.75), Vector3(0.1, 1.3, -5.0)),
 		"living": _spot(Vector3(0.1, 0.05, -2.9), Vector3(2.5, 0.7, -7.0)),
 		"dining": _spot(Vector3(1.8, 0.05, -4.0), Vector3(3.9, 0.8, -5.6)),
@@ -1058,7 +1093,13 @@ func debug_spots() -> Dictionary:
 		"bath": _spot(Vector3(-5.1, 0.05, -3.7), Vector3(-5.4, 0.8, -2.0)),
 		"switch": _spot(Vector3(-1.7, 0.05, -6.9), Vector3(-1.5, 1.25, -5.67)),
 		"storage": _spot(Vector3(-2.4, 0.05, -3.6), Vector3(-2.4, 0.6, -1.9)),
+		"chair": _spot(Vector3(-2.0, 0.05, -4.9), Vector3(-4.9, 0.4, -4.5)),
+		"prints": _spot(Vector3(-3.4, 0.05, -4.9), Vector3(-0.3, 0.0, -5.3)),
+		"kitchen_arch": _spot(Vector3(0.1, 0.05, -3.2), Vector3(2.4, 1.2, -1.2)),
 	}
+	for id in WAKE:
+		spots_out["wake_" + id] = [WAKE[id][0], WAKE[id][1], WAKE[id][2]]
+	return spots_out
 
 
 func set_ceilings_visible(on: bool) -> void:

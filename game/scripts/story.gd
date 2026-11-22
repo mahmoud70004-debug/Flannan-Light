@@ -39,6 +39,13 @@ var _ring_time := 0.0
 var _final_stage := false
 var _near_final := 0.0
 var _hint_timer := 0.0
+var _phase := "day"                       ## "day" or "night" (the playable 3 a.m. walk)
+var _notice_t := {}                       ## anomaly id -> seconds it has been looked at
+var _night_found := false
+var _night_loops: Array = []              ## looping sounds that belong to the day or night (a tap, a dial tone, static)
+var _dread := 0.0                         ## 0..1: time spent in the dark at night; at 1 he loses the time
+var _hall_goes_dark := false
+var _lost_time := false
 var _announced := ""                      ## the task whose objective is on screen ("_sleep": go to bed; "": a quiet spell)
 var _task_timer := -1.0                   ## seconds until the next thought and objective (< 0: none pending)
 var last_knock := -999.0
@@ -64,6 +71,8 @@ func _process(delta: float) -> void:
 	fear = clampf(lerpf(d["fear"], next["fear"], prog) + 0.04 * sin(_clock * 0.6) + _spike, 0.0, 1.0)
 	if fear_override >= 0.0:
 		fear = fear_override
+	_check_anomalies(delta)
+	_night_tick(delta)
 	if _task_timer >= 0.0 and is_free():
 		_task_timer = maxf(_task_timer - delta, 0.0)
 		if _task_timer == 0.0 and not director.is_busy() and not hud.is_talking():
@@ -102,6 +111,49 @@ func _give_hint() -> void:
 		return
 	if not data.get("final", false):
 		hud.say("I should get some sleep.")
+
+
+# --- things that are out of place -------------------------------------------------------------------------------
+
+## Looking at something that is out of place for a moment makes Martin notice it: a line, a note in the notebook,
+## a low thump. Nothing is pressed; the room just tells him.
+func _check_anomalies(delta: float) -> void:
+	if _phase != "day" or not is_free() or hud.is_talking():
+		return
+	var data := Days.get_day(GameState.day)
+	var cam := player.camera
+	var cell := apartment.cell_at(player.global_position)
+	for id in data.get("anomalies", []):
+		if GameState.has_evidence("a_" + id):
+			continue
+		var a: Dictionary = Days.ANOMALY[id]
+		var to: Vector3 = (a["at"] as Vector3) - cam.global_position
+		var dist := to.length()
+		var everywhere: bool = float(a["radius"]) > 50.0
+		var looking := everywhere
+		if not everywhere:
+			if dist > float(a["radius"]) or cam.global_transform.basis.z.dot(-to.normalized()) < 0.5:
+				_notice_t[id] = 0.0
+				continue
+			var acell := apartment.cell_at(Vector3(a["at"].x, 0.05, a["at"].z))
+			looking = acell == cell or acell in apartment.visible_cells(cell)
+		if not looking:
+			continue
+		_notice_t[id] = float(_notice_t.get(id, 0.0)) + delta
+		if _notice_t[id] >= (2.5 if everywhere else 0.7):
+			_notice(id)
+			return
+
+
+func _notice(id: String) -> void:
+	var a: Dictionary = Days.ANOMALY[id]
+	if not GameState.add_evidence("a_" + id, str(a["evidence"])):
+		return
+	Sfx.play("thump", -13.0)
+	hud.say_all(a["lines"])
+	hud.caption("NOTEBOOK  +1", 2.4)
+	boost_fear(0.1)
+	GameState.save()
 
 
 # --- starting a day ---------------------------------------------------------------------------------------
@@ -247,16 +299,28 @@ func start_day() -> void:
 	_final_stage = false
 	_ended = false
 	stranger.vanish()
+	_phase = "day"
+	_notice_t = {}
+	_hall_goes_dark = false
+	_clear_loops()
 	_apply_environment(data)
 	GameState.play_seconds = 0.0
 	hud.hide_tasks()
 	player.set_physics_process(false)
-	player.position = apartment.wake_point()
-	player.rotation.y = apartment.wake_yaw()
-	player.set_pitch(0.0)
+	var spot: Array = apartment.wake_spot(str(data.get("wake", "bed1")))
+	player.position = spot[0]
+	player.rotation.y = spot[1]
+	player.set_pitch(spot[2])
 	player.eye_drop = 0.0
 	player.velocity = Vector3.ZERO
-	await hud.card([data["title"] + "  ·  " + data["sub"]] + data["intro"])
+	var intro: Array = (data["intro"] as Array).duplicate()
+	if _lost_time and GameState.day > 1:
+		intro.insert(0, "I don't remember coming back to bed.")
+	_lost_time = false
+	await hud.card([data["title"] + "  ·  " + data["sub"]] + intro)
+	var wake_note: String = Days.WAKE_EVIDENCE.get(data.get("wake", "bed1"), "")
+	if wake_note != "" and GameState.add_evidence("wake_%d" % GameState.day, wake_note):
+		hud.caption("NOTEBOOK  +1", 2.4)
 	player.set_physics_process(true)
 	await hud.fade(0.0, 1.6)
 	controls.show_photo = GameState.day >= 4
@@ -280,17 +344,39 @@ func _apply_environment(data: Dictionary) -> void:
 	for f in apartment.swarms:
 		(f as Flies).intensity = clampf(maxf(float(data["flies"]), 0.6) * (1.0 if i == 0 else 0.9), 0.0, 1.0)
 		i += 1
-	apartment.set_movable_visible("coat", GameState.day < 8)
-	for room in ["bed2", "bath", "storage"]:
-		apartment.set_room_lit(room, false)
-	for room in ["entry", "kitchen", "living", "hall", "bed1", "living_floor"]:
-		apartment.set_room_lit(room, true)
-	apartment.set_tv(false)
+	apartment.set_day_state(data.get("anomalies", []), data.get("lit", ["living", "hall"]), data.get("all_open", false))
+	var tv_on: bool = data.get("tv_on", false)
+	apartment.set_tv(tv_on)
+	if tv_on:
+		apartment.set_tv_level(0.38)
+		_loop("tv", Sfx.loop_at("tv_static", apartment.tv_position(), -12.0, 9.0, 1.5))
+	if "tub_water" in data.get("anomalies", []):
+		_loop("tap", Sfx.loop_at("tap_run", apartment.pois.get("shower", Vector3(-5.4, 0, -2.4)) + Vector3(0, 0.6, 0), -8.0, 8.0, 1.5))
 	ambience.set_day(GameState.day)
 	var night := clampf(float(GameState.day - 1) / 8.0, 0.0, 1.0)                 # it is always a wet night out there, darker as the days go by
 	var b := lerpf(1.15, 0.62, night)
 	apartment.set_window_light(Color(b, b, b * 1.05))
 	apartment.set_skyline(GameState.day >= 6)
+
+
+func _loop(key: String, player_node: Node) -> void:
+	if player_node:
+		player_node.set_meta("key", key)
+		_night_loops.append(player_node)
+
+
+func _stop_loop(key: String) -> void:
+	for p in _night_loops.duplicate():
+		if is_instance_valid(p) and p.get_meta("key", "") == key:
+			Sfx.stop(p)
+			_night_loops.erase(p)
+
+
+func _clear_loops() -> void:
+	for p in _night_loops:
+		if is_instance_valid(p):
+			Sfx.stop(p)
+	_night_loops.clear()
 
 
 # --- using things -------------------------------------------------------------------------------------------
@@ -299,6 +385,9 @@ func on_used(id: String) -> void:
 	if not is_free():
 		return
 	var data := Days.get_day(GameState.day)
+	if _phase == "night":
+		_night_used(id, data)
+		return
 	if id == "bed1":
 		_try_sleep(data)
 		return
@@ -313,6 +402,12 @@ func on_used(id: String) -> void:
 
 ## Switching on the TV: the news, getting stranger as the days go on.
 func _use_tv() -> void:
+	if apartment.tv_is_on():
+		_stop_loop("tv")
+		apartment.set_tv(false)
+		Sfx.play("click", -4.0)
+		hud.say("Off.")
+		return
 	busy = true
 	apartment.set_tv(true)
 	apartment.set_tv_level(0.38)
@@ -327,14 +422,6 @@ func _examine(id: String) -> void:
 	_hint_timer = 0.0
 	if id == "tv":
 		_use_tv()
-		return
-	if id == "laptop" and GameState.day in [5, 6, 8] and not GameState.flag("notes_%d" % GameState.day):
-		GameState.set_flag("notes_%d" % GameState.day)
-		busy = true
-		var nd := Docs.get_doc("notes_%d" % GameState.day)
-		await hud.read_doc(nd["title"], nd["body"])
-		busy = false
-		boost_fear(0.1)
 		return
 	if id == "front_door" and _clock - last_knock < 45.0:
 		hud.say_all(Days.peephole(GameState.day))
@@ -602,69 +689,214 @@ func _night(data: Dictionary) -> void:
 	await hud.wait_lines()
 	await hud.fade(1.0, 1.6)
 	player.set_physics_process(false)
+	_clear_loops()
 	ambience.hush(6.0, 0.9)
 	await get_tree().create_timer(1.5).timeout
-	for ev in data["night"]:
-		await _night_event(ev)
-		await get_tree().create_timer(1.2).timeout
+	var n: Dictionary = data.get("night", {})
+	if n.is_empty():
+		_end_night()
+		return
+	# 3:07 a.m. He is awake in the dark. Only the hall light is on (Dr. Hale's third rule).
+	_phase = "night"
+	_night_found = false
+	_dread = 0.0
+	_hall_goes_dark = bool(n.get("dark", false))
+	for c in apartment.lamps:
+		apartment.set_room_lit(c, c == "hall")
+	apartment.set_tv(false)
+	stranger.vanish()
+	var spot: Array = apartment.wake_spot("bed1")
+	player.position = spot[0]
+	player.rotation.y = spot[1]
+	player.set_pitch(0.0)
+	player.velocity = Vector3.ZERO
+	await hud.card(["3:07 a.m."], 2.2)
+	hud.set_fade(1.0)
+	player.set_physics_process(true)
+	await hud.fade(0.0, 1.6)
+	busy = false
+	await get_tree().create_timer(4.0).timeout           # lie there and listen
+	_night_cue(n)
+	await get_tree().create_timer(3.0).timeout
+	hud.say(str(n["think"]))
+	await hud.wait_lines()
+	hud.set_objective(str(n["obj"]))
+
+
+## Where a night sound comes from.
+func _cue_pos(key: String) -> Vector3:
+	match key:
+		"bath": return apartment.pois.get("shower", Vector3(-5.4, 0, -2.4)) + Vector3(0, 0.8, 0)
+		"front": return Vector3(0.1, 1.3, -0.15)
+		"dining": return apartment.pois.get("dining_food", Vector3(3.9, 0, -5.5)) + Vector3(0, 0.6, 0)
+		"phone": return apartment.pois.get("phone", Vector3(-6.0, 0, -4.9)) + Vector3(0, 0.8, 0)
+		"bed1door": return Vector3(-4.9, 1.0, -5.75)
+		"living": return apartment.pois.get("clock", Vector3(-0.85, 0, -7.0)) + Vector3(0, 1.9, 0)
+		"bed2": return apartment.pois.get("jack_desk", Vector3(-3.0, 0, -8.0)) + Vector3(0, 0.8, 0)
+		"tv": return apartment.tv_position()
+	return Vector3(0.1, 1.3, -0.15)
+
+
+func _night_cue(n: Dictionary) -> void:
+	var pos := _cue_pos(str(n["at"]))
+	match str(n["cue"]):
+		"tap":
+			_loop("tap", Sfx.loop_at("tap_run", pos, -4.0, 14.0, 2.0))
+		"knock":
+			Sfx.play_at("knock3_front", pos, 0.0, 20.0, 4.0)
+			await get_tree().create_timer(2.4).timeout
+			Sfx.play_at("knock3_front", pos, -4.0, 20.0, 4.0)
+		"chair":
+			Sfx.play_at("chair_scrape", pos, 0.0, 16.0, 3.0)
+		"phone":
+			_loop("phone", Sfx.loop_at("dial_tone", pos, -4.0, 14.0, 2.0))
+		"breath":
+			Sfx.play_at("breath", pos, 0.0, 8.0, 1.5)
+			await get_tree().create_timer(3.0).timeout
+			Sfx.play_at("step_1", pos + Vector3(0.4, -0.9, 0), -2.0, 8.0, 1.5)
+		"clock":
+			Sfx.play_at("thump", pos, -2.0, 14.0, 2.5)
+		"steps":
+			for i in 5:
+				Sfx.play_at("step_%d" % randi_range(0, 3), pos + Vector3(float(i) * 0.15, -0.8, 0), -1.0, 10.0, 2.0)
+				await get_tree().create_timer(0.8).timeout
+		"tv":
+			_loop("tv", Sfx.loop_at("tv_static", pos, -6.0, 14.0, 2.0))
+			await get_tree().create_timer(2.0).timeout
+			Sfx.play_at("whisper_0", pos, -3.0, 10.0, 1.5)
+		"chain":
+			Sfx.play_at("chain_rattle", pos, 0.0, 16.0, 3.0)
+
+
+func _night_used(id: String, data: Dictionary) -> void:
+	var n: Dictionary = data.get("night", {})
+	if id == "bed1":
+		if _night_found:
+			_end_night()
+		else:
+			hud.say("I can't sleep until I know what that was.")
+		return
+	if _night_found or id != str(n.get("target", "")):
+		if id == "tv" and apartment.tv_is_on():
+			_use_tv()
+		return
+	_night_found = true
+	_stop_loop("tap")
+	_stop_loop("phone")
+	_stop_loop("tv")
+	hud.set_objective("")
+	busy = true
+	Sfx.play("thump", -12.0)
+	hud.say_all(n["found"])
+	GameState.add_evidence("night_%d" % GameState.day, str(n["evidence"]))
+	hud.caption("NOTEBOOK  +1", 2.4)
+	boost_fear(0.12)
+	await hud.wait_lines()
+	busy = false
+	hud.set_objective("Go back to bed")
+	if str(n.get("stranger", "")) != "":
+		await get_tree().create_timer(3.5).timeout
+		_spawn_stranger_in(str(n["stranger"]))
+
+
+## Puts the stranger in a dark room, where the player has a clear line to it but is not looking.
+func _spawn_stranger_in(room: String) -> void:
+	if stranger.state != Stranger.State.HIDDEN:
+		return
+	var cells := {"hall": ["hall"], "living": ["living"], "bed2": ["bed2"]}
+	var space := player.get_world_3d().direct_space_state
+	var spots: Array = apartment.stranger_spots.duplicate()
+	spots.shuffle()
+	for sp in spots:
+		var c := apartment.cell_at(sp)
+		if not (c in cells.get(room, [room])) or apartment.room_lit(c):
+			continue
+		var d := Vector2(sp.x - player.global_position.x, sp.z - player.global_position.z).length()
+		if d < 3.5 or d > 12.0:
+			continue
+		if player.camera.is_position_in_frustum(sp + Vector3(0, 1.75, 0)):
+			continue
+		var q := PhysicsRayQueryParameters3D.create(player.camera.global_position, sp + Vector3(0, 1.75, 0))
+		q.collision_mask = 1
+		if not space.intersect_ray(q).is_empty():
+			continue
+		stranger.place(sp)
+		boost_fear(0.2)
+		return
+
+
+## While the player is in the dark at night: the hall light goes out as he enters the hall, time in the dark
+## builds dread, and at full dread the time is lost. Light is safe: a lit room clears the figure and the dread.
+func _night_tick(delta: float) -> void:
+	if _phase != "night" or busy or not is_free():
+		return
+	var cell := apartment.cell_at(player.global_position)
+	if _hall_goes_dark and cell == "hall":
+		_hall_goes_dark = false
+		Sfx.play_at("lamp_buzz", player.global_position + Vector3(0, 2.0, 0), -3.0, 8.0, 2.0)
+		apartment.set_room_lit("hall", false)
+		boost_fear(0.18)
+	var data := Days.get_day(GameState.day)
+	var dark_night: bool = (data.get("night", {}) as Dictionary).get("dark", false)
+	var dim: bool = dark_night and cell != "" and not apartment.room_lit(cell) and cell != "bed1"
+	if dim:
+		_dread = minf(_dread + delta / 28.0, 1.0)
+	else:
+		_dread = maxf(_dread - delta / 6.0, 0.0)
+	fear_override = clampf(_dread * 0.5, 0.0, 1.0) if _dread > 0.05 else -1.0
+	if stranger.state != Stranger.State.HIDDEN and not stranger.final_mode:
+		var sc := apartment.cell_at(stranger.global_position)
+		if sc != "" and apartment.room_lit(sc):
+			stranger.vanish()                              # it cannot stand in the light
+	if _dread >= 1.0:
+		_lose_time()
+
+
+## Too long in the dark: the picture goes, and he is somewhere else when it returns.
+func _lose_time() -> void:
+	if busy:
+		return
+	busy = true
+	_lost_time = true
+	_dread = 0.0
+	fear_override = -1.0
+	Sfx.play("heartbeat", -3.0)
+	hud.set_objective("")
+	stranger.vanish()
+	await hud.fade(1.0, 0.7)
+	await get_tree().create_timer(2.5).timeout
+	GameState.add_evidence("lost_%d" % GameState.day, "I lost time again. I was in the dark, and then I wasn't.")
+	_end_night()
+
+
+func _end_night() -> void:
+	busy = true
+	_phase = "day"
+	fear_override = -1.0
+	_clear_loops()
+	stranger.vanish()
+	hud.set_objective("")
+	await hud.fade(1.0, 1.0)
 	GameState.next_day()
 	director.enabled = true
 	await start_day()
 
 
-func _night_event(name: String) -> void:
-	match name:
-		"footsteps_door":
-			var pts := [Vector3(-1.4, 0.1, -4.9), Vector3(-2.2, 0.1, -4.9), Vector3(-3.0, 0.1, -4.9), Vector3(-3.8, 0.1, -4.9), Vector3(-4.5, 0.1, -5.2), Vector3(-4.9, 0.1, -5.5)]
-			for p in pts:
-				Sfx.play_at("step_%d" % randi_range(0, 3), p, 0.0, 12.0, 2.5)
-				await get_tree().create_timer(0.72).timeout
-			await get_tree().create_timer(3.0).timeout
-			Sfx.play_at("breath", Vector3(-4.9, 1.0, -5.6), -2.0, 6.0, 1.0)
-			await get_tree().create_timer(3.0).timeout
-		"knock_front":
-			Sfx.play_at("knock3_front", Vector3(0.1, 1.3, -0.15), 0.0, 20.0, 4.0)
-			await get_tree().create_timer(2.5).timeout
-			Sfx.play_at("knock3_front", Vector3(0.1, 1.3, -0.15), -5.0, 20.0, 4.0)
-			await get_tree().create_timer(3.0).timeout
-		"whisper_bed":
-			Sfx.play_at("whisper_%d" % randi_range(0, 4), Vector3(-4.9, 1.0, -8.3), 0.0, 6.0, 1.0)
-			await get_tree().create_timer(3.5).timeout
-		"stranger_bed":
-			await _wake_scene(Vector3(-4.85, 0.05, -8.45), PI, Vector3(-4.85, 0.0, -6.4), 0.62)
-		"stranger_hall":
-			await _wake_scene(Vector3(-1.5, 0.05, -4.9), PI / 2.0, Vector3(-5.5, 0.0, -4.9), 0.0)
-
-
-## Martin wakes (or finds himself) somewhere in the dark and the stranger is standing there.
-func _wake_scene(player_pos: Vector3, yaw: float, stranger_pos: Vector3, eye_drop: float) -> void:
-	player.position = player_pos
-	player.rotation.y = yaw
-	player.set_pitch(0.0)
-	player.eye_drop = eye_drop
-	var lit: Array = []
-	for c in apartment.lamps:
-		if apartment.room_lit(c):
-			lit.append(c)
-		apartment.set_room_lit(c, false)
-	stranger.place(stranger_pos)
-	stranger.set_process(false)
-	Sfx.play("heartbeat", -6.0)
-	await hud.fade(0.0, 2.2)
-	await get_tree().create_timer(3.2).timeout
-	boost_fear(0.3)
-	Sfx.play_at("lamp_buzz", player_pos + Vector3(0, 2, 0), -4.0, 8.0, 2.0)
-	for i in 4:
-		apartment.set_room_lit(apartment.cell_at(player_pos), i % 2 == 0)
-		await get_tree().create_timer(0.09).timeout
-	apartment.set_room_lit(apartment.cell_at(player_pos), false)
-	stranger.vanish()
-	stranger.set_process(true)
-	await get_tree().create_timer(1.6).timeout
-	await hud.fade(1.0, 1.4)
-	player.eye_drop = 0.0
-	for c in lit:
-		apartment.set_room_lit(c, true)
+## Martin's notebook: what he has written down, in order, and what he is on now. Opened from the NOTES button.
+func open_notes() -> void:
+	if not is_free():
+		return
+	var data := Days.get_day(GameState.day)
+	var t := "RIGHT NOW\n"
+	var obj := hud.objective_text()
+	t += (obj if obj != "" else "Nothing in particular.") + "\n\nWHAT I'VE WRITTEN DOWN\n"
+	if GameState.evidence.is_empty():
+		t += "Nothing yet. (Dr. Hale said to write down anything unusual.)"
+	for e in GameState.evidence:
+		t += "\nDay %d.  %s\n" % [e["day"], e["text"]]
+	busy = true
+	await hud.read_doc("Notes", t)
+	busy = false
 
 
 # --- the last day and the ending ---------------------------------------------------------------------------------------------
@@ -715,19 +947,15 @@ func _ending() -> void:
 	var d := stranger.global_position - player.camera.global_position
 	player.rotation.y = atan2(-d.x, -d.z)
 	player.set_pitch(atan2(d.y - 0.1, Vector2(d.x, d.z).length()))
-	hud.say("It's wearing my coat.")
+	hud.say("I'm here.")
 	await get_tree().create_timer(3.5).timeout
 	stranger.reveal_as_martin()
 	Sfx.play("heartbeat", -2.0)
-	hud.say("It has my face.")
-	await get_tree().create_timer(4.0).timeout
-	hud.say("There was never anyone else.")
-	await get_tree().create_timer(3.5).timeout
+	await get_tree().create_timer(7.0).timeout                      # nobody says anything
 	hud.fade_color(Color.WHITE)
 	await hud.fade(1.0, 4.0)
 	Sfx.clear()
 	ambience.stop_all()
-	await hud.card(["It was me.", "It was only ever me."], 2.8)
 	hud.fade_color(Color.BLACK)
 	await _epilogue()
 
