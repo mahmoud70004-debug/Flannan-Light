@@ -104,7 +104,7 @@ const DATA := [
 		"title": "DAY 7", "sub": "Sunday",
 		"intro": ["Jack called again. I let it ring.", "Eleven rings. I counted."],
 		"tasks": [
-			{"id": "phone", "text": "Play the new message", "steps": ["phone"], "vm": "vm3", "say": ["He talked to Whitmore.", "Everyone's talking about me."]},
+			{"id": "phone", "text": "Answer the phone", "steps": ["phone"], "vm": "vm3", "say": ["He talked to Whitmore.", "Everyone's talking about me."]},
 			{"id": "pills", "text": "Look in the medicine cabinet", "steps": ["pills"], "doc": "pills", "say": ["I don't need them.", "I'm not sick. Somebody else is the problem."]},
 			{"id": "job_search", "text": "Check the inbox", "steps": ["laptop"], "doc": "inbox_7", "say": ["Dr. Hale's office. Three missed appointments."]},
 		],

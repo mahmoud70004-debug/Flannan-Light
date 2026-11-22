@@ -12,5 +12,7 @@ python gen_voicemail.py            # writes out/<voice>_clean.wav and out/<voice
 ffmpeg -i out/x.wav -ac 1 -b:a 56k out/x.mp3
 ```
 
+`gen_calls.py` is the current generator for all eight messages (see its docstring); `gen_game_voices.py` keeps the SFX voices.
+
 `_phone` is the same read band-passed to 320–3300 Hz with mild saturation and hiss. Edit `SEG` for new lines
 (day 7: the doctor and the pills). Candidates for the first round are in `docs/audio-candidates/jack/`.

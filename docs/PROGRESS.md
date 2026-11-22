@@ -28,3 +28,7 @@ gets a merge when the user asks. Jack's voice: `am_onyx` (kokoro-onnx), more pau
 - Tests: use-point reachability, model existence, pause menu, scripted-event firing, whole-game bot (546 checks, ~3 min).
 - Added: Jack's first voicemail on day 1 (vm0), the machine greeting in the epilogue, AUTO picture height, title flicker, reactions/hints/ambient bits, fear effects (blink, throb, lamp wavering), reduced-flash option.
 - Open: playtest on the phone (performance, pacing, scare tuning, voices), APK build, merging `dev` into `main` when asked.
+
+## Update: calls and a more natural Jack
+- Voicemail queue fix (an unheard message no longer completes a later phone task), louder flies from day 1.
+- Jack re-recorded (`gen_calls.py`): faster, jittered, shorter. Days 5, 7 and 9 are live calls Martin answers, flat and late, stranger each time.

@@ -419,16 +419,20 @@ func _vm_data(name: String) -> Dictionary:
 	return {"duration": 3.0, "lines": []}
 
 
-## Plays a voicemail from the machine with captions. `count_task`: a phone task waiting on it is advanced.
+## Plays a message from the phone with captions. A voicemail comes off the machine (tones, then Jack alone);
+## a call is picked up live: Martin answers, flat and late, and Jack's lines carry on around him.
+## `count_task`: a phone task waiting on it is advanced.
 func _play_vm(name: String, count_task: bool) -> void:
 	busy = true
 	var info := _vm_data(name)
+	var is_call: bool = info.get("call", false)
 	Sfx.play("handset", -3.0)
 	await get_tree().create_timer(0.6).timeout
-	Sfx.play("machine_new", -2.0)
-	await get_tree().create_timer(Audio.length("machine_new") + 0.3).timeout
-	Sfx.play("machine_beep", -6.0)
-	await get_tree().create_timer(0.7).timeout
+	if not is_call:
+		Sfx.play("machine_new", -2.0)
+		await get_tree().create_timer(Audio.length("machine_new") + 0.3).timeout
+		Sfx.play("machine_beep", -6.0)
+		await get_tree().create_timer(0.7).timeout
 	Sfx.play(name, 0.0)
 	var t0 := 0.0
 	for line in info["lines"]:
@@ -436,11 +440,18 @@ func _play_vm(name: String, count_task: bool) -> void:
 		if wait_s > 0.0:
 			await get_tree().create_timer(wait_s).timeout
 		t0 = float(line["t"])
-		hud.caption("JACK:  " + str(line["text"]), float(line["d"]) + 0.3)
+		var who: String = str(line.get("who", "JACK"))
+		hud.caption(who + ":  " + str(line["text"]), float(line["d"]) + 0.3)
+		if who == "MARTIN":
+			boost_fear(0.04)                     # his own voice, wrong in his ear
 	var rest: float = float(info["duration"]) - t0
 	await get_tree().create_timer(maxf(rest, 0.2) + 0.4).timeout
-	Sfx.play("machine_end", -3.0)
-	await get_tree().create_timer(Audio.length("machine_end") + 0.4).timeout
+	if is_call:
+		Sfx.play("handset", -3.0)
+		await get_tree().create_timer(0.8).timeout
+	else:
+		Sfx.play("machine_end", -3.0)
+		await get_tree().create_timer(Audio.length("machine_end") + 0.4).timeout
 	GameState.pending.erase(name)
 	if not (name in GameState.heard):
 		GameState.heard.append(name)
@@ -684,7 +695,7 @@ func _epilogue() -> void:
 			if wait_s > 0.0:
 				await get_tree().create_timer(wait_s).timeout
 			t0 = float(line["t"])
-			hud.caption("JACK:  " + str(line["text"]), float(line["d"]) + 0.3)
+			hud.caption(str(line.get("who", "JACK")) + ":  " + str(line["text"]), float(line["d"]) + 0.3)
 		await get_tree().create_timer(maxf(float(info["duration"]) - t0, 0.2) + 1.5).timeout
 	await get_tree().create_timer(5.0).timeout
 	await hud.fade(1.0, 3.0)

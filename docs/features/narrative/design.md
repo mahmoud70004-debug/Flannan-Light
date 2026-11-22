@@ -30,3 +30,21 @@ How the story is told. The player must not learn that Martin is ill from a chara
 
 ## Open questions
 - Voice acting or text only for Jack's voicemails? Text-on-screen with a muffled voice is cheaper. [ASSUMPTION]
+
+## Phone calls Martin answers (v0.4)
+
+Jack's messages were shortened (voicemails 9 to 18 s, calls 23 to 32 s) and re-recorded with `tools/tts/gen_calls.py`.
+The first takes sounded synthetic: every sentence was read at 0.9x with the same gap and level, then pitched down.
+Now speed stays at or above 1.0, every chunk has its own speed, pitch and level jitter, gaps vary, and the worry comes
+from short broken phrases, breaths and sighs.
+
+Three messages are live calls (`"call": true` in their JSON): the phone rings and Martin picks up. His voice (am_adam)
+is lowered, dulled, squashed and quiet, and his answers come late. Each call is a little wrong-er:
+
+| Day | Call | Martin |
+|---|---|---|
+| 5 | vm2 | "Yeah." "I'm fine." Short, tired, nearly normal. |
+| 7 | vm3 | Repeats Jack's words ("Doctor Hale." "I'm taking the pills."), answers after 1 to 1.5 s. |
+| 9 | vm4 | "Nobody has come." "There's someone else on the line." "He's listening." A second breath joins the line. |
+
+Voicemails (vm0, vm1, vm5 to vm7) are still Jack alone, through the machine. Captions carry the speaker (`who`).
