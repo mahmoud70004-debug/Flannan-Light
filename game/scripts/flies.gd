@@ -15,7 +15,7 @@ var intensity := 1.0:
 		if _mat:
 			_mat.set_shader_parameter("amount", intensity)
 		if _audio:
-			_audio.volume_db = lerpf(-30.0, -3.0, intensity)
+			_audio.volume_db = lerpf(-14.0, -2.0, intensity)
 			if intensity <= 0.01 and _audio.playing:
 				_audio.stop()
 			elif intensity > 0.01 and not _audio.playing and is_inside_tree():

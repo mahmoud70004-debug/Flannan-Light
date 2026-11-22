@@ -184,6 +184,7 @@ func _run() -> void:
 	await process_frame
 
 	await _playthrough()
+	await _voicemail_order()
 	await _save_roundtrip()
 	await _fuzz()
 
@@ -520,6 +521,39 @@ func _use_points_work(flat) -> void:
 		flat.doors[d].set_open(false, false)
 
 
+## A message nobody listened to must not stand in for the one a phone task is waiting for.
+func _voicemail_order() -> void:
+	Engine.time_scale = 10.0
+	Engine.set_meta("overrides", {"spawn": "door", "no_title": "1"})
+	var w = (load("res://scenes/world.tscn") as PackedScene).instantiate()
+	root.add_child(w)
+	await process_frame
+	await process_frame
+	var story = w._story
+	var hud = w._hud
+	w._director.enabled = false
+	# Day 4 with vm0 (day 1) unheard: the machine plays vm0 then vm1, and the task is done
+	gs.new_game()
+	gs.queue_vm("vm0")
+	gs.day = 4
+	await story.start_day()
+	_check(gs.pending == ["vm0", "vm1"], "day 4 starts with the old and the new message waiting")
+	await _bot_use(story, hud, "phone")
+	_check(gs.heard.has("vm0") and gs.heard.has("vm1") and gs.pending.is_empty(), "both messages are heard, oldest first")
+	_check(gs.is_done("phone"), "day 4: the phone task completes once vm1 has played")
+	# Day 7 with vm2 (day 5, nobody asked for it) unheard: vm3 is still the task's message
+	gs.new_game()
+	gs.queue_vm("vm2")
+	gs.day = 7
+	await story.start_day()
+	_check(not gs.is_done("phone"), "day 7: the phone task is not done before anyone answers")
+	await _bot_use(story, hud, "phone")
+	_check(gs.heard.has("vm2") and gs.heard.has("vm3") and gs.is_done("phone"), "day 7: vm3 is heard and finishes the task even with vm2 unheard")
+	w.queue_free()
+	await process_frame
+	Engine.time_scale = 1.0
+
+
 ## Save and load keep the day, tasks, steps, flags, photos and heard messages.
 func _save_roundtrip() -> void:
 	gs.new_game()
@@ -528,14 +562,14 @@ func _save_roundtrip() -> void:
 	gs.step_index["photo"] = 1
 	gs.set_flag("coat_gone")
 	gs.photos = 3
-	gs.pending_vm = "vm2"
+	gs.pending = ["vm2"]
 	gs.heard = ["vm1"]
 	gs.save()
 	gs.new_game()
 	_check(gs.day == 1 and gs.photos == 0, "a new game starts clean")
 	_check(gs.load_game(), "the save loads")
 	_check(gs.day == 5 and gs.is_done("search") and gs.step_index.get("photo", 0) == 1, "day, task and step progress survive a save")
-	_check(gs.flag("coat_gone") and gs.photos == 3 and gs.pending_vm == "vm2" and gs.heard == ["vm1"], "flags, photos and messages survive a save")
+	_check(gs.flag("coat_gone") and gs.photos == 3 and gs.pending == ["vm2"] and gs.heard == ["vm1"], "flags, photos and messages survive a save")
 	gs.erase()
 	_check(not gs.has_save(), "erasing removes the save")
 

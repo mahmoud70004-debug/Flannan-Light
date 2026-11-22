@@ -15,7 +15,7 @@ var step_index := {}                  ## task id -> how many of its steps are do
 var flags := {}                       ## story flags (coat_gone, heard_vm1, ...)
 var photos := 0                       ## photos taken in total
 var play_seconds := 0.0               ## time played today (drives scripted events)
-var pending_vm := ""                  ## a voicemail waiting on the machine ("" = none)
+var pending: Array = []               ## voicemails waiting on the machine, in the order they arrived
 var heard: Array = []                 ## voicemails already played
 var ended := false
 
@@ -27,10 +27,16 @@ func new_game() -> void:
 	flags = {}
 	photos = 0
 	play_seconds = 0.0
-	pending_vm = ""
+	pending = []
 	heard = []
 	ended = false
 	day_changed.emit(day)
+
+
+## A message arrives on the machine (once: never twice, never after it has been heard).
+func queue_vm(name: String) -> void:
+	if name != "" and not (name in heard) and not (name in pending):
+		pending.append(name)
 
 
 func set_flag(name: String, value: Variant = true) -> void:
@@ -74,7 +80,7 @@ func save() -> void:
 	cfg.set_value("state", "step_index", step_index)
 	cfg.set_value("state", "flags", flags)
 	cfg.set_value("state", "photos", photos)
-	cfg.set_value("state", "pending_vm", pending_vm)
+	cfg.set_value("state", "pending", pending)
 	cfg.set_value("state", "heard", heard)
 	cfg.set_value("state", "ended", ended)
 	cfg.save(PATH)
@@ -89,7 +95,7 @@ func load_game() -> bool:
 	step_index = cfg.get_value("state", "step_index", {})
 	flags = cfg.get_value("state", "flags", {})
 	photos = int(cfg.get_value("state", "photos", 0))
-	pending_vm = str(cfg.get_value("state", "pending_vm", ""))
+	pending = cfg.get_value("state", "pending", [])
 	heard = cfg.get_value("state", "heard", [])
 	ended = bool(cfg.get_value("state", "ended", false))
 	play_seconds = 0.0

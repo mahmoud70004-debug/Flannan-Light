@@ -29,8 +29,8 @@ func _ready_kit() -> void:
 	add_child(ceilings)
 
 
-func _surface(mat_key: String, layer: int) -> SurfaceTool:
-	var k := "%s|%d" % [mat_key, layer]
+func _surface(mat_key: String, layer: int, tag := "") -> SurfaceTool:
+	var k := "%s|%d|%s" % [mat_key, layer, tag]
 	if not _batches.has(k):
 		var st := SurfaceTool.new()
 		st.begin(Mesh.PRIMITIVE_TRIANGLES)
@@ -59,7 +59,7 @@ func box(center: Vector3, size: Vector3, base: Array, faces := {}, collide := tr
 		var corners: Array[Vector3] = [
 			cf - a * ha - b * hb, cf + a * ha - b * hb, cf + a * ha + b * hb, cf - a * ha + b * hb]
 		var tile := Mats.uv_tile(spec[0])
-		var st := _surface(Mats.batch_key(spec[0]), spec[1])
+		var st := _surface(Mats.batch_key(spec[0]), spec[1], spec[2] if spec.size() > 2 else "")
 		var col := Mats.color_of(spec[0]) if Mats.is_plain(spec[0]) else Color.WHITE
 		var tinted := Mats.is_plain(spec[0])
 		var wn := basis * n

@@ -167,6 +167,7 @@ func start_day() -> void:
 	_ended = false
 	stranger.vanish()
 	_apply_environment(data)
+	GameState.queue_vm(_day_vm(data))        # today's message is on the machine, ring or no ring
 	GameState.play_seconds = 0.0
 	hud.hide_tasks()
 	player.set_physics_process(false)
@@ -194,7 +195,7 @@ func start_day() -> void:
 func _apply_environment(data: Dictionary) -> void:
 	var i := 0
 	for f in apartment.swarms:
-		(f as Flies).intensity = clampf(float(data["flies"]) * (1.0 if i == 0 else 0.8), 0.0, 1.0)
+		(f as Flies).intensity = clampf(maxf(float(data["flies"]), 0.6) * (1.0 if i == 0 else 0.9), 0.0, 1.0)
 		i += 1
 	apartment.set_movable_visible("coat", GameState.day < 8)
 	for room in ["bed2", "bath", "storage"]:
@@ -335,19 +336,23 @@ func take_photo() -> void:
 
 # --- the phone and the answering machine -----------------------------------------------------------------------------
 
+## The message that belongs to today ("" if none): the day's own, else the one a phone task is waiting for.
+func _day_vm(data: Dictionary) -> String:
+	if data.has("vm"):
+		return str(data["vm"])
+	var vm := ""
+	for t in data["tasks"]:
+		if t.has("vm") and not GameState.is_done(t["id"]):
+			vm = t["vm"]
+	return vm
+
+
 func start_ring() -> void:
 	if ringing:
 		return
 	var data := Days.get_day(GameState.day)
-	var vm := ""
-	if data.has("vm"):
-		vm = data["vm"]
-	else:
-		for t in data["tasks"]:
-			if t.has("vm") and not GameState.is_done(t["id"]):
-				vm = t["vm"]
-	if vm != "" and not (vm in GameState.heard):
-		GameState.pending_vm = vm
+	var vm := _day_vm(data)
+	GameState.queue_vm(vm)
 	ringing = true
 	_ring_time = 0.0
 	var pos: Vector3 = apartment.pois.get("phone", Vector3(-6.0, 0.0, -4.9)) + Vector3(0, 0.8, 0)
@@ -363,18 +368,46 @@ func stop_ring() -> void:
 	_ring_player = null
 
 
+## The message a still-unfinished phone task is waiting for ("" if no task needs the phone right now).
+func _needed_vm(data: Dictionary) -> String:
+	for t in data["tasks"]:
+		if GameState.is_done(t["id"]):
+			continue
+		var idx: int = GameState.step_index.get(t["id"], 0)
+		if t["steps"].size() > idx and t["steps"][idx] == "phone":
+			return str(t.get("vm", ""))
+	return ""
+
+
+func _phone_task_waiting(data: Dictionary) -> bool:
+	for t in data["tasks"]:
+		if GameState.is_done(t["id"]):
+			continue
+		var idx: int = GameState.step_index.get(t["id"], 0)
+		if t["steps"].size() > idx and t["steps"][idx] == "phone":
+			return true
+	return false
+
+
 func _use_phone(data: Dictionary) -> void:
 	stop_ring()
-	if GameState.pending_vm != "":
-		_play_vm(GameState.pending_vm, true)
+	if not GameState.pending.is_empty():
+		_play_pending()
 		return
-	for t in data["tasks"]:
-		if not GameState.is_done(t["id"]) and t["steps"].size() > GameState.step_index.get(t["id"], 0) and t["steps"][GameState.step_index.get(t["id"], 0)] == "phone":
-			if data.get("final", false):
-				_call_jack(t)
-				return
-			break
+	if data.get("final", false) and _phone_task_waiting(data):
+		_call_jack(data)
+		return
 	hud.say("The machine light isn't blinking.")
+
+
+## Plays every message waiting on the machine, oldest first. Only the message a phone task is waiting
+## for counts toward that task; an older one just plays (and the right one still comes when it arrives).
+func _play_pending() -> void:
+	while not GameState.pending.is_empty():
+		var name: String = GameState.pending[0]
+		var data := Days.get_day(GameState.day)
+		var counts := name == _needed_vm(data)
+		await _play_vm(name, counts)
 
 
 func _vm_data(name: String) -> Dictionary:
@@ -408,8 +441,9 @@ func _play_vm(name: String, count_task: bool) -> void:
 	await get_tree().create_timer(maxf(rest, 0.2) + 0.4).timeout
 	Sfx.play("machine_end", -3.0)
 	await get_tree().create_timer(Audio.length("machine_end") + 0.4).timeout
-	GameState.pending_vm = ""
-	GameState.heard.append(name)
+	GameState.pending.erase(name)
+	if not (name in GameState.heard):
+		GameState.heard.append(name)
 	GameState.set_flag("heard_" + name)
 	boost_fear(0.25)
 	busy = false
@@ -420,7 +454,7 @@ func _play_vm(name: String, count_task: bool) -> void:
 
 
 ## Day 10: Martin phones his brother and gets the voicemail greeting. He says nothing.
-func _call_jack(t: Dictionary) -> void:
+func _call_jack(_data: Dictionary) -> void:
 	busy = true
 	Sfx.play("handset", -3.0)
 	await get_tree().create_timer(1.0).timeout

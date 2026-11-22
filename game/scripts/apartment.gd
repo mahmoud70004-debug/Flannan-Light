@@ -258,7 +258,8 @@ func _walls() -> void:
 func _wall_run(axis: String, fixed: float, a0: float, a1: float, t: float, ops: Array, neg: String, pos: String) -> void:
 	var neg_spec := _spec(neg)
 	var pos_spec := _spec(pos)
-	var edge: Array = [] if (neg_spec.is_empty() and pos_spec.is_empty()) else ["trim", L_JAMB]   # painted reveals
+	# Painted reveals: lit by every lamp, but each room's are their own mesh so a mesh only meets nearby lights
+	var edge: Array = [] if (neg_spec.is_empty() and pos_spec.is_empty()) else ["trim", L_JAMB, neg if neg != "" else pos]
 	var faces := {}
 	if axis == "x":
 		faces = {"nx": neg_spec, "px": pos_spec, "pz": edge, "nz": edge, "py": edge, "ny": edge}
