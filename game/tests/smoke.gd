@@ -184,6 +184,8 @@ func _run() -> void:
 	await process_frame
 
 	await _playthrough()
+	await _save_roundtrip()
+	await _fuzz()
 
 	# Settings round-trip
 	var s := root.get_node_or_null("Settings")
@@ -516,3 +518,80 @@ func _use_points_work(flat) -> void:
 	player.queue_free()
 	for d in flat.doors:
 		flat.doors[d].set_open(false, false)
+
+
+## Save and load keep the day, tasks, steps, flags, photos and heard messages.
+func _save_roundtrip() -> void:
+	gs.new_game()
+	gs.day = 5
+	gs.finish_task("search")
+	gs.step_index["photo"] = 1
+	gs.set_flag("coat_gone")
+	gs.photos = 3
+	gs.pending_vm = "vm2"
+	gs.heard = ["vm1"]
+	gs.save()
+	gs.new_game()
+	_check(gs.day == 1 and gs.photos == 0, "a new game starts clean")
+	_check(gs.load_game(), "the save loads")
+	_check(gs.day == 5 and gs.is_done("search") and gs.step_index.get("photo", 0) == 1, "day, task and step progress survive a save")
+	_check(gs.flag("coat_gone") and gs.photos == 3 and gs.pending_vm == "vm2" and gs.heard == ["vm1"], "flags, photos and messages survive a save")
+	gs.erase()
+	_check(not gs.has_save(), "erasing removes the save")
+
+
+## A seeded fuzz: random uses of props, random events, photos and menu toggles on random days.
+## Nothing may error and the game must stay playable.
+func _fuzz() -> void:
+	Engine.time_scale = 8.0
+	Engine.set_meta("overrides", {"spawn": "door", "no_title": "1"})
+	var w = (load("res://scenes/world.tscn") as PackedScene).instantiate()
+	root.add_child(w)
+	await process_frame
+	await process_frame
+	var story = w._story
+	var apartment = w._apartment
+	var hud = w._hud
+	var director = w._director
+	var stranger = w._stranger
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 2026
+	var ids: Array = apartment.use_points.keys()
+	var events: Array = []
+	for m in director.get_method_list():
+		if (m["name"] as String).begins_with("_ev_"):
+			events.append((m["name"] as String).substr(4))
+	director.enabled = true
+	for round in 6:
+		gs.new_game()
+		gs.day = rng.randi_range(1, Days.COUNT - 1)
+		await story.start_day()
+		for i in 70:
+			var r := rng.randi() % 10
+			if r < 5:
+				story.on_used(ids[rng.randi() % ids.size()])
+			elif r < 7:
+				director.fire(events[rng.randi() % events.size()])
+			elif r < 8:
+				story.take_photo()
+			elif r < 9:
+				w._toggle_menu()
+				await process_frame
+				w._toggle_menu()
+			else:
+				stranger.vanish()
+				gs.play_seconds += rng.randf_range(10.0, 90.0)
+				director.update(0.1)
+			for k in 3:
+				await process_frame
+			if hud.doc_open:
+				hud.close_doc()
+		stranger.vanish()
+		story.stop_ring()
+		await create_timer(2.0).timeout
+	_check(true, "the fuzz ran 420 random actions without an error")
+	Engine.time_scale = 1.0
+	gs.erase()
+	w.queue_free()
+	await process_frame
+	await process_frame
