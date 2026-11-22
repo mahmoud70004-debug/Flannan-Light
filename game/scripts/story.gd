@@ -96,6 +96,43 @@ func show_debug_day() -> void:
 	controls.show_photo = GameState.day >= 4
 
 
+## Look-dev: put the game into one of its moments without playing to it (`--show=<name>`).
+func debug_show(what: String) -> void:
+	match what:
+		"tasks":
+			show_tasks(0.0)
+		"doc":
+			var d := Docs.get_doc("letter")
+			hud.show_doc(d["title"], d["body"])
+		"say":
+			hud.say("\"Psychological problems.\"", 60.0)
+			hud.caption("JACK:  Martin… it's Jack. Again.", 60.0)
+		"stranger":
+			stranger.approach_step = 0.0
+			stranger.place(Vector3(-5.5, 0, -4.9))
+			stranger.set_process(false)
+		"stranger_living":
+			stranger.place(Vector3(2.4, 0, -3.4))
+			stranger.set_process(false)
+		"final":
+			for c in apartment.lamps:
+				apartment.set_room_lit(c, false)
+			apartment.set_tv(true)
+			stranger.place(Vector3(2.3, 0.0, -4.2))
+			stranger.set_process(false)
+		"final_face":
+			for c in apartment.lamps:
+				apartment.set_room_lit(c, false)
+			apartment.set_tv(true)
+			stranger.place(Vector3(1.6, 0.0, -3.6))
+			stranger.set_process(false)
+			stranger.reveal_as_martin()
+		"epilogue":
+			apartment.show_epilogue()
+		"coat_gone":
+			apartment.set_movable_visible("coat", false)
+
+
 ## Begins (or resumes) the current day: the black card, waking in bed, the list on the note.
 func start_day() -> void:
 	busy = true
@@ -119,6 +156,9 @@ func start_day() -> void:
 	await hud.fade(0.0, 1.6)
 	controls.show_photo = GameState.day >= 4
 	show_tasks(7.0)
+	if GameState.day == 1 and not GameState.flag("hint_shown"):
+		GameState.set_flag("hint_shown")
+		hud.say("Walk with the left thumb. Look with the right. USE to touch things.", 5.5)
 	busy = false
 
 
@@ -128,9 +168,9 @@ func _apply_environment(data: Dictionary) -> void:
 		(f as Flies).intensity = clampf(float(data["flies"]) * (1.0 if i == 0 else 0.8), 0.0, 1.0)
 		i += 1
 	apartment.set_movable_visible("coat", GameState.day < 8)
-	for room in ["bed1", "bed2", "bath", "storage"]:
+	for room in ["bed2", "bath", "storage"]:
 		apartment.set_room_lit(room, false)
-	for room in ["entry", "kitchen", "living", "hall"]:
+	for room in ["entry", "kitchen", "living", "hall", "bed1", "living_floor"]:
 		apartment.set_room_lit(room, true)
 	apartment.set_tv(false)
 

@@ -14,3 +14,11 @@ gets a merge when the user asks. Jack's voice: `am_onyx` (kokoro-onnx), more pau
 
 ## Done
 - (see git log on `dev`)
+
+## 2026-11-22 (full-game pass, session 1)
+- Done on `dev`: audio (SFX synth + Jack's voicemails with caption JSON), flat v3 (open plan, rot, flies, trash corner),
+  GameState/Days/Docs/Story/Director/Stranger/Ambience/Sfx/HUD, title with Continue, a bot in the smoke test that plays all
+  ten days and the ending (472 checks, ~2 min).
+- Web export checked in Chromium/SwiftShader: title -> new game -> day card -> game loads, no console errors.
+- Next: visual polish pass (trash corner, epilogue, stranger look), more content (TV, calendar, mirror, peephole),
+  tune pacing/difficulty, more documents, update GDD/plan docs, performance look at fx levels.

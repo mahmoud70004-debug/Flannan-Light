@@ -38,6 +38,7 @@ func _ready() -> void:
 	_hud.set_fade(0.0 if _debug_scene else 1.0)
 	if _debug_scene:
 		_story.show_debug_day()
+		_story.debug_show(str(_overrides.get("show", "")))
 		return
 	_story.start_day()
 
@@ -45,7 +46,7 @@ func _ready() -> void:
 ## Debug arguments from the URL (web) or command line (desktop).
 func _read_overrides() -> void:
 	if OS.has_feature("web"):
-		for key in ["spawn", "day", "res", "grade", "shadows", "msaa", "fx", "fear"]:
+		for key in ["spawn", "show", "day", "res", "grade", "shadows", "msaa", "fx", "fear"]:
 			var v := str(JavaScriptBridge.eval("new URLSearchParams(location.search).get('%s') || ''" % key))
 			if v != "":
 				_overrides[key] = v

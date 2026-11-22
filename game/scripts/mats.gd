@@ -34,7 +34,7 @@ const TABLE := {
 	"lampshade": {"tex": "", "tint": Color(0.78, 0.70, 0.52), "rough": 0.9},
 	"green_glass": {"tex": "", "tint": Color(0.06, 0.16, 0.08), "rough": 0.1, "metal": 0.2},
 	"chrome": {"tex": "", "tint": Color(0.7, 0.7, 0.72), "rough": 0.15, "metal": 0.9},
-	"skin": {"tex": "", "tint": Color(0.62, 0.55, 0.50), "rough": 0.7},
+	"skin": {"tex": "", "tint": Color(0.46, 0.44, 0.45), "rough": 0.8},
 	"mold": {"tex": "", "tint": Color(0.20, 0.27, 0.14), "rough": 0.9},
 	"rot": {"tex": "", "tint": Color(0.10, 0.07, 0.04), "rough": 0.9},
 	"beer": {"tex": "", "tint": Color(0.42, 0.24, 0.07), "rough": 0.12, "metal": 0.1},

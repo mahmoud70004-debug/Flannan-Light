@@ -566,6 +566,7 @@ func _lamps_and_switches() -> void:
 ## A ceiling lamp: the light, a fitting, and a glowing bulb that go on and off together.
 func add_lamp(cell: String, pos: Vector3, color: Color, energy: float, range_m: float, fitting: String) -> void:
 	var layer := layer_of(cell)
+	var shade_node: MeshInstance3D = null
 	var light := OmniLight3D.new()
 	light.position = pos - Vector3(0, 0.05, 0)
 	light.light_color = color
@@ -589,6 +590,7 @@ func add_lamp(cell: String, pos: Vector3, color: Color, energy: float, range_m: 
 		dome.position = pos - Vector3(0, 0.08, 0)
 		dome.layers = layer
 		add_child(dome)
+		shade_node = dome
 	var bulb := MeshInstance3D.new()
 	var sphere := SphereMesh.new()
 	sphere.radius = 0.05
@@ -603,8 +605,8 @@ func add_lamp(cell: String, pos: Vector3, color: Color, energy: float, range_m: 
 	if not lamps.has(cell):
 		lamps[cell] = []
 	var entry := {"light": light, "bulb": bulb, "energy": energy}
-	if fitting == "shade":
-		entry["shade"] = true
+	if shade_node:
+		entry["shade"] = shade_node
 	(lamps[cell] as Array).append(entry)
 
 
@@ -617,6 +619,8 @@ func set_room_lit(room: String, on: bool) -> void:
 	for l in lamps.get(room, []):
 		(l["light"] as Light3D).visible = on
 		(l["bulb"] as MeshInstance3D).visible = on
+		if l.has("shade"):
+			(l["shade"] as MeshInstance3D).visible = on
 
 
 func toggle_room(room: String) -> void:
