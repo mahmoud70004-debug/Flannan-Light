@@ -7,4 +7,7 @@ for src_dir in (os.path.join(HERE, "out"), os.path.join(HERE, "../tts/out_game")
     for f in sorted(glob.glob(os.path.join(src_dir, "*.wav"))):
         out = os.path.join(DEST, os.path.basename(f)[:-4] + ".ogg")
         subprocess.run(["ffmpeg", "-loglevel", "error", "-y", "-i", f, "-ac", "1", "-c:a", "libvorbis", "-q:a", "3", out], check=True)
+import shutil
+for j in glob.glob(os.path.join(HERE, "../tts/out_game/*.json")):       # captions travel with the clips
+    shutil.copy(j, DEST)
 print(len(glob.glob(os.path.join(DEST, "*.ogg"))), "ogg files in", DEST)
