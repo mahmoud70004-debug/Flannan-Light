@@ -21,10 +21,12 @@ var rng := RandomNumberGenerator.new()
 var _next_in := 30.0
 var _busy := false
 var _quiet := 0.0
-var _scripted: Array = []          ## [{at, do, fired}] for the current day
+var _since := 0.0                  ## seconds since the last event finished
+var _rushing := false              ## the day's tasks are done: whatever is left happens soon
+var _scripted: Array = []          ## [{after|when, delay, do, armed, cd, fired}] for the current day
 var _recent: Array = []
 var _last_name := ""
-var _amb_next := 20.0
+var _amb_next := 60.0
 
 
 func _ready() -> void:
@@ -34,27 +36,76 @@ func _ready() -> void:
 ## Called at the start of every day with that day's data.
 func start_day(data: Dictionary) -> void:
 	_scripted = []
+	_rushing = false
 	for s in data.get("scripted", []):
-		_scripted.append({"at": s["at"], "do": s["do"], "fired": false})
+		_scripted.append({"after": s.get("after", ""), "when": s.get("when", ""), "delay": float(s.get("delay", 0.0)),
+			"do": s["do"], "armed": false, "cd": 0.0, "fired": false})
 	var ev: Dictionary = data.get("events", {})
-	_next_in = float(ev.get("first", 40.0))
+	_next_in = float(ev.get("first", 90.0))
 	_quiet = 0.0
+	_since = 0.0
+	_amb_next = rng.randf_range(50.0, 90.0)
 	_recent = []
+	notify("done", "start")
+
+
+## The story tells the director what the player has done ("done": a task finished, "start" for the day itself;
+## "current": a task has just become the objective). Scripted moments arm their timers from these.
+func notify(kind: String, id: String) -> void:
+	for s in _scripted:
+		if s["armed"] or s["fired"]:
+			continue
+		if (kind == "done" and s["after"] == id) or (kind == "current" and s["when"] == id):
+			s["armed"] = true
+			s["cd"] = s["delay"]
+
+
+## Every task is done: the moments still waiting come soon, one after the other, so the bed is not stuck.
+func rush() -> void:
+	_rushing = true
+	var n := 0
+	for s in _scripted:
+		if s["fired"]:
+			continue
+		var left: float = s["cd"] if s["armed"] else s["delay"]
+		s["armed"] = true
+		s["cd"] = minf(left, 6.0 + 9.0 * n)
+		n += 1
+
+
+func quiet(seconds: float) -> void:
+	_quiet = maxf(_quiet, seconds)
+
+
+func is_busy() -> bool:
+	return _busy
+
+
+## The least time between two events: long at first, shorter as the days go on.
+func _min_gap() -> float:
+	if _rushing:
+		return 12.0
+	return lerpf(55.0, 28.0, clampf(float(GameState.day - 1) / 9.0, 0.0, 1.0))
 
 
 func update(delta: float) -> void:
 	if not enabled or story == null or not story.is_free():
 		return
 	_quiet = maxf(_quiet - delta, 0.0)
+	if not _busy:
+		_since += delta
+	for s in _scripted:
+		if s["armed"] and not s["fired"]:
+			s["cd"] = maxf(s["cd"] - delta, 0.0)
 	_amb_next -= delta
 	if _amb_next <= 0.0 and _quiet <= 0.0:
-		_amb_next = rng.randf_range(22.0, 48.0)
+		var f := clampf(float(GameState.day - 1) / 9.0, 0.0, 1.0)
+		_amb_next = rng.randf_range(lerpf(70.0, 30.0, f), lerpf(130.0, 60.0, f))
 		_ambient_bit()
-	if _busy or _quiet > 0.0:
+	if _busy or _quiet > 0.0 or _since < _min_gap():
 		return
-	var t := GameState.play_seconds
 	for s in _scripted:
-		if not s["fired"] and t >= s["at"]:
+		if s["armed"] and not s["fired"] and s["cd"] <= 0.0:
 			s["fired"] = true
 			fire(s["do"])
 			return
@@ -70,7 +121,7 @@ func update(delta: float) -> void:
 	if pool.is_empty():
 		_next_in = 60.0
 		return
-	var every: Array = ev.get("every", [60.0, 90.0])
+	var every: Array = ev.get("every", [90.0, 140.0])
 	_next_in = rng.randf_range(every[0], every[1])
 	fire(pool[rng.randi() % pool.size()])
 
@@ -96,6 +147,7 @@ func fire(event_name: String) -> void:
 		_busy = true
 		await call(m)
 		_busy = false
+	_since = 0.0
 
 
 ## Martin sometimes says something about what just happened (less and less as the days go on).
@@ -209,7 +261,7 @@ func _ev_footsteps_door() -> void:                 # a night event: someone at t
 
 
 func _ev_knock() -> void:
-	Sfx.play_at("knock3", Vector3(0.1, 1.3, -0.15), 0.0, 18.0, 4.0)
+	Sfx.play_at("knock3_front", Vector3(0.1, 1.3, -0.15), 0.0, 18.0, 4.0)      # the front door: muffled, from outside
 	if story:
 		story.last_knock = story._clock
 	_fear(0.12)
@@ -272,6 +324,8 @@ func _ev_lights_out() -> void:
 	for c in apartment.lamps:
 		if apartment.room_lit(c) and (c == cell or c.begins_with(cell)):
 			lit_before.append(c)
+	if apartment.switch_at.has(cell):                       # a click at the switch: nobody is standing there
+		Sfx.play_at("switch", apartment.switch_at[cell], -1.0, 10.0, 2.5)
 	Sfx.play_at("lamp_buzz", player.global_position + Vector3(0, 2.0, 0), -2.0, 8.0, 2.0)
 	for c in lit_before:
 		apartment.set_room_lit(c, false)

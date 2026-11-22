@@ -39,6 +39,8 @@ var _ring_time := 0.0
 var _final_stage := false
 var _near_final := 0.0
 var _hint_timer := 0.0
+var _announced := ""                      ## the task whose objective is on screen ("_sleep": go to bed; "": a quiet spell)
+var _task_timer := -1.0                   ## seconds until the next thought and objective (< 0: none pending)
 var last_knock := -999.0
 var _ended := false
 
@@ -48,7 +50,7 @@ func is_free() -> bool:
 
 
 func boost_fear(amount: float) -> void:
-	_spike = clampf(_spike + amount, 0.0, 0.45)
+	_spike = clampf(_spike + amount * 0.75, 0.0, 0.4)
 
 
 func _process(delta: float) -> void:
@@ -58,11 +60,16 @@ func _process(delta: float) -> void:
 	_spike = maxf(_spike - delta * 0.12, 0.0)
 	var d := Days.get_day(GameState.day)
 	var next := Days.get_day(mini(GameState.day + 1, Days.COUNT))
-	var prog := clampf(GameState.play_seconds / 420.0, 0.0, 1.0) * 0.7
+	var prog := _task_progress(d) * 0.8                                          # the fear follows what has been done, not the clock
 	fear = clampf(lerpf(d["fear"], next["fear"], prog) + 0.04 * sin(_clock * 0.6) + _spike, 0.0, 1.0)
 	if fear_override >= 0.0:
 		fear = fear_override
-	if is_free():
+	if _task_timer >= 0.0 and is_free():
+		_task_timer = maxf(_task_timer - delta, 0.0)
+		if _task_timer == 0.0 and not director.is_busy() and not hud.is_talking():
+			_task_timer = -1.0
+			_announce()
+	if is_free() and _announced != "":
 		_hint_timer += delta
 		if _hint_timer > 85.0:
 			_hint_timer = 0.0
@@ -99,12 +106,86 @@ func _give_hint() -> void:
 
 # --- starting a day ---------------------------------------------------------------------------------------
 
+## The first task that is not done: the one Martin is on.
+func _current_task(data: Dictionary) -> Dictionary:
+	for t in data["tasks"]:
+		if not GameState.is_done(t["id"]):
+			return t
+	return {}
+
+
+func _task_progress(data: Dictionary) -> float:
+	var n: int = (data["tasks"] as Array).size()
+	var done := 0
+	for t in data["tasks"]:
+		if GameState.is_done(t["id"]):
+			done += 1
+	return float(done) / float(maxi(n, 1))
+
+
+## Martin's list shows what he has done and what he is on; what comes next stays unknown.
 func _task_list(data: Dictionary) -> Array:
 	var out: Array = []
 	for t in data["tasks"]:
-		out.append({"text": t["text"], "done": GameState.is_done(t["id"])})
-	out.append({"text": "Go to sleep" if not data.get("final", false) else "...", "done": false})
+		var done := GameState.is_done(t["id"])
+		out.append({"text": t["text"], "done": done})
+		if not done:
+			break
+	if _announced == "_sleep":
+		out.append({"text": "Go to sleep", "done": false})
 	return out
+
+
+## The quiet between two tasks: longer at first, a little shorter as the days press in.
+func _gap() -> float:
+	return lerpf(38.0, 24.0, clampf(float(GameState.day - 1) / 9.0, 0.0, 1.0))
+
+
+## Martin thinks aloud about the next thing, then the objective appears at the top of the screen.
+func _announce() -> void:
+	var data := Days.get_day(GameState.day)
+	var t := _current_task(data)
+	if t.is_empty():
+		await _announce_sleep(data)
+		return
+	var tid: String = t["id"]
+	var started: bool = GameState.step_index.get(tid, 0) > 0
+	if t.has("vm"):
+		GameState.queue_vm(str(t["vm"]))                           # the message he is waiting for is on the machine
+	_announced = tid
+	director.notify("current", tid)
+	director.quiet(18.0)
+	_hint_timer = 0.0
+	if not started:
+		var think := Days.think_for(t)
+		if think != "":
+			hud.say(think)
+			await hud.wait_lines()
+			await get_tree().create_timer(0.9).timeout
+	_refresh_objective()
+
+
+func _announce_sleep(data: Dictionary) -> void:
+	if data.get("final", false):
+		return
+	if director.enabled and not director.all_scripted_fired():
+		_task_timer = 4.0                                          # the day's last moments first
+		return
+	_announced = "_sleep"
+	hud.say("I should try to sleep.")
+	await hud.wait_lines()
+	_refresh_objective()
+
+
+func _refresh_objective() -> void:
+	if _announced == "_sleep":
+		hud.set_objective("Go to bed")
+		return
+	var t := _current_task(Days.get_day(GameState.day))
+	if _announced == "" or t.is_empty() or t["id"] != _announced:
+		hud.set_objective("")
+		return
+	hud.set_objective(Days.objective(t, GameState.step_index.get(t["id"], 0)))
 
 
 func show_tasks(seconds := 6.0) -> void:
@@ -167,7 +248,6 @@ func start_day() -> void:
 	_ended = false
 	stranger.vanish()
 	_apply_environment(data)
-	GameState.queue_vm(_day_vm(data))        # today's message is on the machine, ring or no ring
 	GameState.play_seconds = 0.0
 	hud.hide_tasks()
 	player.set_physics_process(false)
@@ -180,8 +260,11 @@ func start_day() -> void:
 	player.set_physics_process(true)
 	await hud.fade(0.0, 1.6)
 	controls.show_photo = GameState.day >= 4
-	show_tasks(7.0)
 	_hint_timer = 0.0
+	_announced = ""
+	hud.set_objective("")
+	var progress := _task_progress(data) > 0.0 or not GameState.step_index.is_empty()
+	_task_timer = 4.0 if progress else (40.0 if GameState.day == 1 else 22.0)   # first, time to look around
 	if GameState.day == 4 and not GameState.flag("hint_photo"):
 		GameState.set_flag("hint_photo")
 		hud.say("My phone has a camera. The PHOTO button, up there.", 4.5)
@@ -204,9 +287,9 @@ func _apply_environment(data: Dictionary) -> void:
 		apartment.set_room_lit(room, true)
 	apartment.set_tv(false)
 	ambience.set_day(GameState.day)
-	var night := clampf(float(GameState.day - 1) / 8.0, 0.0, 1.0)                 # the windows darken as the days go by
-	var b := lerpf(2.3, 0.55, night)
-	apartment.set_window_light(Color(b, b, b * 1.06))
+	var night := clampf(float(GameState.day - 1) / 8.0, 0.0, 1.0)                 # it is always a wet night out there, darker as the days go by
+	var b := lerpf(1.15, 0.62, night)
+	apartment.set_window_light(Color(b, b, b * 1.05))
 	apartment.set_skyline(GameState.day >= 6)
 
 
@@ -265,18 +348,17 @@ func _examine(id: String) -> void:
 
 ## The task whose next step is `id`, advancing it; returns true if an interaction was consumed.
 func _advance_task(id: String, data: Dictionary) -> bool:
-	for t in data["tasks"]:
-		var tid: String = t["id"]
-		if GameState.is_done(tid):
-			continue
-		var idx: int = GameState.step_index.get(tid, 0)
-		var steps: Array = t["steps"]
-		if idx >= steps.size() or steps[idx] != id:
-			continue
-		GameState.step_index[tid] = idx + 1
-		_do_step(t, id, idx + 1 >= steps.size())
-		return true
-	return false
+	var t := _current_task(data)
+	if t.is_empty() or t["id"] != _announced:
+		return false
+	var tid: String = t["id"]
+	var idx: int = GameState.step_index.get(tid, 0)
+	var steps: Array = t["steps"]
+	if idx >= steps.size() or steps[idx] != id:
+		return false
+	GameState.step_index[tid] = idx + 1
+	_do_step(t, id, idx + 1 >= steps.size())
+	return true
 
 
 func _do_step(t: Dictionary, id: String, last: bool) -> void:
@@ -299,10 +381,16 @@ func _do_step(t: Dictionary, id: String, last: bool) -> void:
 		GameState.finish_task(t["id"])
 		hud.say_all(t.get("say", []))
 		boost_fear(0.04)
-		show_tasks(5.0)
+		_announced = ""
+		hud.set_objective("")
+		director.notify("done", t["id"])
+		if _current_task(Days.get_day(GameState.day)).is_empty():
+			director.rush()                                  # what is left of the day happens now, so the bed is not stuck
+		_task_timer = _gap()                                 # a quiet stretch to look around before the next thing
 	else:
 		if STEP_SAY.has(id) and not (id in DOC_ON_STEP):
 			hud.say(STEP_SAY[id])
+		_refresh_objective()
 	busy = false
 	GameState.save()
 	_check_final()
@@ -369,24 +457,23 @@ func stop_ring() -> void:
 
 
 ## The message a still-unfinished phone task is waiting for ("" if no task needs the phone right now).
+## The message the task Martin is on is waiting for ("" if it is not a phone task right now).
 func _needed_vm(data: Dictionary) -> String:
-	for t in data["tasks"]:
-		if GameState.is_done(t["id"]):
-			continue
-		var idx: int = GameState.step_index.get(t["id"], 0)
-		if t["steps"].size() > idx and t["steps"][idx] == "phone":
-			return str(t.get("vm", ""))
+	var t := _current_task(data)
+	if t.is_empty() or t["id"] != _announced:
+		return ""
+	var idx: int = GameState.step_index.get(t["id"], 0)
+	if t["steps"].size() > idx and t["steps"][idx] == "phone":
+		return str(t.get("vm", ""))
 	return ""
 
 
 func _phone_task_waiting(data: Dictionary) -> bool:
-	for t in data["tasks"]:
-		if GameState.is_done(t["id"]):
-			continue
-		var idx: int = GameState.step_index.get(t["id"], 0)
-		if t["steps"].size() > idx and t["steps"][idx] == "phone":
-			return true
-	return false
+	var t := _current_task(data)
+	if t.is_empty() or t["id"] != _announced:
+		return false
+	var idx: int = GameState.step_index.get(t["id"], 0)
+	return t["steps"].size() > idx and t["steps"][idx] == "phone"
 
 
 func _use_phone(data: Dictionary) -> void:
@@ -498,7 +585,6 @@ func _try_sleep(data: Dictionary) -> void:
 	for t in data["tasks"]:
 		if not GameState.is_done(t["id"]):
 			hud.say(Days.NOT_YET[randi() % Days.NOT_YET.size()])
-			show_tasks(5.0)
 			return
 	if not director.all_scripted_fired() and director.enabled:
 		hud.say("I'm not tired yet. Something is about to happen.")
@@ -510,6 +596,8 @@ func _night(data: Dictionary) -> void:
 	busy = true
 	stop_ring()
 	hud.hide_tasks()
+	_announced = ""
+	hud.set_objective("")
 	hud.say(data["sleep_line"])
 	await hud.wait_lines()
 	await hud.fade(1.0, 1.6)
@@ -535,9 +623,9 @@ func _night_event(name: String) -> void:
 			Sfx.play_at("breath", Vector3(-4.9, 1.0, -5.6), -2.0, 6.0, 1.0)
 			await get_tree().create_timer(3.0).timeout
 		"knock_front":
-			Sfx.play_at("knock3", Vector3(0.1, 1.3, -0.15), 0.0, 20.0, 4.0)
+			Sfx.play_at("knock3_front", Vector3(0.1, 1.3, -0.15), 0.0, 20.0, 4.0)
 			await get_tree().create_timer(2.5).timeout
-			Sfx.play_at("knock1", Vector3(0.1, 1.3, -0.15), 0.0, 20.0, 4.0)
+			Sfx.play_at("knock3_front", Vector3(0.1, 1.3, -0.15), -5.0, 20.0, 4.0)
 			await get_tree().create_timer(3.0).timeout
 		"whisper_bed":
 			Sfx.play_at("whisper_%d" % randi_range(0, 4), Vector3(-4.9, 1.0, -8.3), 0.0, 6.0, 1.0)
@@ -594,6 +682,8 @@ func _check_final() -> void:
 func _begin_final() -> void:
 	_final_stage = true
 	director.enabled = false
+	_announced = ""
+	hud.set_objective("Go to the living room")
 	busy = true
 	stop_ring()
 	ambience.hush(10.0, 0.95)

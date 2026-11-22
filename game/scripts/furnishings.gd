@@ -89,6 +89,8 @@ static func _bed(a: Apartment, cell: String, c: Vector3, yaw: float, w: float, l
 
 static func _picture(a: Apartment, cell: String, wall_pos: Vector3, facing: Vector3, w: float, h: float, tone := "paper") -> void:
 	var along_x := facing.x != 0.0
+	if not a.hang_ok("picture at %s" % wall_pos, wall_pos, "x" if along_x else "z", w * 0.5, wall_pos.y - h * 0.5, wall_pos.y + h * 0.5):
+		return                                                  # never hang anything on a door, an arch or a window
 	var c := wall_pos + facing * 0.017
 	var frame := Vector3(0.03, h, w) if along_x else Vector3(w, h, 0.03)
 	var inner := Vector3(0.034, h - 0.08, w - 0.08) if along_x else Vector3(w - 0.08, h - 0.08, 0.034)
@@ -204,6 +206,7 @@ static func _entry(a: Apartment) -> void:
 	for i in 3:
 		a.place_model("shoes", c, Vector3(-0.78, 0.34, -2.0 + float(i) * 0.26), float(i) * 0.6 + 1.5)
 	_p(a, c, Vector3(-0.9, 1.55, -1.1), Vector3(0.04, 0.04, 0.5), "brass", 0.0, false)               # hooks
+	a.hang_ok("coat on its hook", Vector3(-0.84, 1.0, -1.1), "x", 0.15, 0.4, 1.6)
 	a.make_movable("coat", c, Vector3(-0.84, 1.0, -1.1), [[Vector3.ZERO, Vector3(0.1, 1.1, 0.3), "cloth_grey"], [Vector3(0, 0.5, 0.0), Vector3(0.12, 0.08, 0.2), "cloth_grey"]])   # Martin's coat
 	_p(a, c, Vector3(0.1, 0.007, -0.32), Vector3(0.8, 0.014, 0.45), "cloth_grey", 0.0, false)        # doormat
 	for i in 7:                                                                                     # the mail, piled up by the door
@@ -331,9 +334,9 @@ static func _hall(a: Apartment) -> void:
 	a.place_model("phone", c, Vector3(-6.05, 0.74, -4.9), -PI / 2.0)                                 # phone and answering machine
 	a.use_point("phone", "The phone", Vector3(0.6, 0.6, 0.8), Vector3(-6.0, 0.8, -4.9))
 	_rug(a, c, Vector3(-3.6, 0, -4.9), 3.4, 0.8, "cloth_red")
-	_picture(a, c, Vector3(-2.2, 1.5, -5.54), Vector3(0, 0, 1), 0.5, 0.35, "cloth_blue")
-	_picture(a, c, Vector3(-4.2, 1.5, -5.54), Vector3(0, 0, 1), 0.36, 0.5, "paper")
-	_picture(a, c, Vector3(-2.6, 1.5, -4.26), Vector3(0, 0, -1), 0.6, 0.4, "cloth_red")
+	_picture(a, c, Vector3(-3.05, 1.5, -5.54), Vector3(0, 0, 1), 0.5, 0.35, "cloth_blue")
+	_picture(a, c, Vector3(-4.05, 1.5, -5.54), Vector3(0, 0, 1), 0.36, 0.5, "paper")
+	_picture(a, c, Vector3(-3.7, 1.5, -4.26), Vector3(0, 0, -1), 0.6, 0.4, "cloth_red")
 	_plant(a, c, Vector3(-1.5, 0.0, -4.5))
 	a.stain(c, Vector3(-4.5, 2.49, -4.9), Vector3(0, -1, 0), 1.1)
 	a.stain(c, Vector3(-6.29, 0.5, -5.2), Vector3(1, 0, 0), 0.9, 1.2)

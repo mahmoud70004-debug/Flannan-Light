@@ -32,3 +32,10 @@ gets a merge when the user asks. Jack's voice: `am_onyx` (kokoro-onnx), more pau
 ## Update: calls and a more natural Jack
 - Voicemail queue fix (an unheard message no longer completes a later phone task), louder flies from day 1.
 - Jack re-recorded (`gen_calls.py`): faster, jittered, shorter. Days 5, 7 and 9 are live calls Martin answers, flat and late, stranger each time.
+
+## Update: after the first night on a phone
+- Pictures that hung on doors were left in the air when the door opened: moved, and a check (`Apartment.hang_ok`) now fails the test if any wall item overlaps a door, arch or window.
+- Real recordings for flies (much quieter, short range), knocks (a muffled one for the front door) and the light switch (also clicks when the lights go out by themselves).
+- Windows: always a wet night, rain and grime, curtains drawn with a gap (the figure from day 6 shows in the gap), blinds on the bare windows; day 1 starts at 7:14 p.m.
+- Pacing: one task at a time with a thought and an objective, quiet stretches, events tied to progress (see `docs/features/daily-routine/design.md`).
+- Defaults: pixel filter MID, 360p, shadows on all.

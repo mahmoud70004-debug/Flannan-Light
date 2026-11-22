@@ -15,7 +15,7 @@ var intensity := 1.0:
 		if _mat:
 			_mat.set_shader_parameter("amount", intensity)
 		if _audio:
-			_audio.volume_db = lerpf(-14.0, -2.0, intensity)
+			_audio.volume_db = lerpf(-11.0, -5.0, intensity)
 			if intensity <= 0.01 and _audio.playing:
 				_audio.stop()
 			elif intensity > 0.01 and not _audio.playing and is_inside_tree():
@@ -57,12 +57,13 @@ static func make(parent: Node3D, layer: int, pos: Vector3, count := 14, radius :
 	if not Audio.muted:
 		f._audio = AudioStreamPlayer3D.new()
 		f._audio.stream = Audio.stream("flies_loop")
-		f._audio.unit_size = 1.2
-		f._audio.max_distance = 7.0
+		f._audio.unit_size = 0.9                 # heard from a few steps away, not from the next room
+		f._audio.max_distance = 5.0
 		f._audio.attenuation_model = AudioStreamPlayer3D.ATTENUATION_INVERSE_SQUARE_DISTANCE
-		f._audio.volume_db = -3.0
+		f._audio.volume_db = -8.0
+		f._audio.max_db = -4.0                     # two swarms side by side never add up to a roar
 		f.add_child(f._audio)
 	parent.add_child(f)
 	if f._audio:
-		f._audio.play()
+		f._audio.play(randf() * 4.0)               # swarms do not buzz in step
 	return f

@@ -21,6 +21,10 @@ var _worst_ms := 0.0
 var _worst_window := 0.0
 var _info := ""
 var _line_tween: Tween
+var _objective: Control
+var _obj_text: Label
+var _obj_tween: Tween
+var _obj_target := ""                 ## what the objective is meant to say right now ("" = hidden), whatever the fade is doing
 var _note: PanelContainer
 var _note_label: RichTextLabel
 var _note_tween: Tween
@@ -79,6 +83,7 @@ func _ready() -> void:
 		_cross.draw_circle(_cross.size * 0.5, 3.0, Color(1, 1, 1, 0.7)))
 	add_child(_cross)
 
+	_build_objective()
 	_build_note()
 	_build_doc()
 	_build_menu()
@@ -178,6 +183,49 @@ func caption(text: String, seconds: float) -> void:
 
 
 # --- task note ------------------------------------------------------------------------------------
+
+func _build_objective() -> void:
+	_objective = VBoxContainer.new()
+	_objective.position = Vector2(26, 18)
+	_objective.custom_minimum_size = Vector2(620, 0)
+	_objective.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var head := _make_label(17, Vector2.ZERO)
+	head.text = "OBJECTIVE"
+	head.add_theme_color_override("font_color", Color(0.72, 0.62, 0.45))
+	_obj_text = _make_label(27, Vector2.ZERO)
+	_obj_text.add_theme_color_override("font_color", Color(0.95, 0.93, 0.86))
+	_obj_text.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_obj_text.custom_minimum_size = Vector2(620, 0)
+	_objective.add_child(head)
+	_objective.add_child(_obj_text)
+	_objective.modulate.a = 0.0
+	add_child(_objective)
+
+
+## The current objective, top left. An empty text hides it (a quiet stretch between tasks).
+func set_objective(text: String) -> void:
+	_obj_target = text
+	if _obj_tween:
+		_obj_tween.kill()
+	if text == "":
+		_obj_tween = create_tween()
+		_obj_tween.tween_property(_objective, "modulate:a", 0.0, 0.6)
+		return
+	if _obj_text.text != text or _objective.modulate.a < 0.5:
+		_obj_text.text = text
+		_objective.modulate.a = 0.0
+	_obj_tween = create_tween()
+	_obj_tween.tween_property(_objective, "modulate:a", 1.0, 0.8)
+
+
+func objective_text() -> String:
+	return _obj_target
+
+
+## True while a line of Martin's is on screen or waiting.
+func is_talking() -> bool:
+	return _saying or not _queue.is_empty()
+
 
 func _build_note() -> void:
 	_note = PanelContainer.new()

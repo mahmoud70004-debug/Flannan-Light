@@ -3,15 +3,19 @@ class_name Days
 ## flat smells, and what Martin says. Writing a day is writing content, not code.
 ##
 ## task: {id, text, steps: [use ids in order], say: [lines when done], doc: document id shown on the last step}
-## scripted: [{at: seconds into the day, do: event name}]; night: events during the sleep sequence.
-## events.pool: the random events allowed that day; events.every: [min, max] seconds between them.
+## scripted: [{after: task id | "start", delay: s, do: event}] or {when: task id (it becomes the objective), ...}.
+##   They hang on what the player has done, so they land in the quiet stretches between tasks, never on a clock.
+## night: events during the sleep sequence.
+## events.pool: the random events allowed that day; events.every: [min, max] seconds between them;
+##   events.first: how long before the first random one.
+## task.think: what Martin says to himself when the task begins (else THINK[id]); task.obj: objective text per step.
 
 const COUNT := 10
 const PHOTO_STEP := "photo"           ## a task step satisfied by taking a photo with the phone
 
 const DATA := [
 	{
-		"title": "DAY 1", "sub": "Monday, 9:14 a.m.",
+		"title": "DAY 1", "sub": "Monday, 7:14 p.m.",
 		"intro": ["They let me go on Friday.", "Three days. I still haven't told anyone."],
 		"tasks": [
 			{"id": "read_letter", "text": "Read the letter", "steps": ["mail"], "doc": "letter",
@@ -22,8 +26,8 @@ const DATA := [
 				"say": ["Another résumé into the void."]},
 		],
 		"flies": 0.25, "fear": 0.10,
-		"events": {"pool": ["cough"], "every": [70.0, 110.0], "first": 60.0},
-		"scripted": [{"at": 100.0, "do": "phone_ring"}, {"at": 170.0, "do": "cough"}],
+		"events": {"pool": ["cough"], "every": [150.0, 230.0], "first": 170.0},
+		"scripted": [{"after": "read_letter", "delay": 45.0, "do": "cough"}, {"after": "eat", "delay": 30.0, "do": "phone_ring"}],
 		"vm": "vm0",
 		"night": [],
 		"sleep_line": "Tomorrow I'll do better.",
@@ -37,8 +41,8 @@ const DATA := [
 			{"id": "job_search", "text": "Check the inbox", "steps": ["laptop"], "doc": "inbox_2", "say": ["Nobody wants a man who was fired for being \"unwell\"."]},
 		],
 		"flies": 0.35, "fear": 0.16,
-		"events": {"pool": ["cough", "footsteps"], "every": [60.0, 100.0], "first": 50.0},
-		"scripted": [{"at": 90.0, "do": "footsteps"}, {"at": 300.0, "do": "cough"}],
+		"events": {"pool": ["cough", "footsteps"], "every": [120.0, 190.0], "first": 120.0},
+		"scripted": [{"after": "shower", "delay": 35.0, "do": "footsteps"}, {"after": "eat", "delay": 50.0, "do": "cough"}],
 		"night": ["footsteps_door"],
 		"sleep_line": "The neighbours must be home.",
 	},
@@ -48,12 +52,12 @@ const DATA := [
 		"tasks": [
 			{"id": "eat", "text": "Eat something", "steps": ["fridge", "sofa"], "say": ["I'm not hungry. I eat anyway."]},
 			{"id": "job_search", "text": "Read Mr. Whitmore's email", "steps": ["laptop"], "doc": "inbox_3", "say": ["He says it's \"for the best\"."]},
-			{"id": "trash", "text": "Take the trash out", "steps": ["trash", "front_door"],
+			{"id": "trash", "text": "Take the trash out", "steps": ["trash", "front_door"], "obj": ["Take the bag from the kitchen corner", "Take it to the front door"],
 				"say": ["The chain is on.", "It's always on. Isn't it?", "I'll do it tomorrow."]},
 		],
 		"flies": 0.45, "fear": 0.22,
-		"events": {"pool": ["cough", "footsteps", "knock", "door_creak"], "every": [55.0, 90.0], "first": 45.0},
-		"scripted": [{"at": 100.0, "do": "knock"}, {"at": 260.0, "do": "knock_door"}],
+		"events": {"pool": ["cough", "footsteps", "knock", "door_creak"], "every": [105.0, 170.0], "first": 100.0},
+		"scripted": [{"after": "eat", "delay": 35.0, "do": "knock"}, {"after": "job_search", "delay": 30.0, "do": "knock_door"}],
 		"night": ["knock_front"],
 		"sleep_line": "Someone knocked. Or the pipes did.",
 	},
@@ -66,8 +70,8 @@ const DATA := [
 			{"id": "job_search", "text": "Apply for a job", "steps": ["laptop"], "doc": "inbox_4", "say": ["Same replies, different logos."]},
 		],
 		"flies": 0.55, "fear": 0.30,
-		"events": {"pool": ["footsteps", "knock", "door_creak", "lights_flicker", "whisper"], "every": [50.0, 80.0], "first": 40.0},
-		"scripted": [{"at": 80.0, "do": "phone_ring"}, {"at": 260.0, "do": "lights_flicker"}],
+		"events": {"pool": ["footsteps", "knock", "door_creak", "lights_flicker", "whisper"], "every": [95.0, 150.0], "first": 90.0},
+		"scripted": [{"when": "phone", "delay": 6.0, "do": "phone_ring"}, {"after": "job_search", "delay": 30.0, "do": "lights_flicker"}],
 		"night": ["stranger_hall"],
 		"sleep_line": "There was someone at the end of the hall. There wasn't.",
 	},
@@ -80,8 +84,8 @@ const DATA := [
 			{"id": "eat", "text": "Eat something", "steps": ["fridge", "sofa"], "say": ["I eat standing up. Watching the hall."]},
 		],
 		"flies": 0.65, "fear": 0.38,
-		"events": {"pool": ["footsteps", "knock", "door_creak", "lights_flicker", "whisper", "laugh", "stranger_far"], "every": [45.0, 75.0], "first": 35.0},
-		"scripted": [{"at": 70.0, "do": "whisper"}, {"at": 200.0, "do": "lights_out"}, {"at": 330.0, "do": "phone_ring"}],
+		"events": {"pool": ["footsteps", "knock", "door_creak", "lights_flicker", "whisper", "laugh", "stranger_far"], "every": [85.0, 135.0], "first": 80.0},
+		"scripted": [{"after": "search", "delay": 40.0, "do": "whisper"}, {"after": "photo", "delay": 35.0, "do": "lights_out"}, {"after": "eat", "delay": 25.0, "do": "phone_ring"}],
 		"night": ["footsteps_door", "knock_front"],
 		"sleep_line": "I'm leaving the lamp on.",
 		"vm": "vm2",
@@ -95,8 +99,8 @@ const DATA := [
 			{"id": "eat", "text": "Eat something", "steps": ["fridge", "sofa"], "say": ["Crackers. It's all there is."]},
 		],
 		"flies": 0.75, "fear": 0.46,
-		"events": {"pool": ["footsteps", "knock", "door_creak", "lights_flicker", "whisper", "laugh", "stranger_far", "door_open"], "every": [40.0, 70.0], "first": 30.0},
-		"scripted": [{"at": 60.0, "do": "laugh"}, {"at": 180.0, "do": "door_open"}, {"at": 300.0, "do": "stranger_far"}],
+		"events": {"pool": ["footsteps", "knock", "door_creak", "lights_flicker", "whisper", "laugh", "stranger_far", "door_open"], "every": [75.0, 120.0], "first": 70.0},
+		"scripted": [{"after": "check_door", "delay": 40.0, "do": "laugh"}, {"after": "check_window", "delay": 35.0, "do": "door_open"}, {"after": "eat", "delay": 20.0, "do": "stranger_far"}],
 		"night": ["stranger_bed"],
 		"sleep_line": "Don't look at the foot of the bed.",
 	},
@@ -109,8 +113,8 @@ const DATA := [
 			{"id": "job_search", "text": "Check the inbox", "steps": ["laptop"], "doc": "inbox_7", "say": ["Dr. Hale's office. Three missed appointments."]},
 		],
 		"flies": 0.85, "fear": 0.55,
-		"events": {"pool": ["footsteps", "knock", "lights_flicker", "whisper", "laugh", "stranger_far", "door_open", "breath", "lights_out"], "every": [35.0, 60.0], "first": 30.0},
-		"scripted": [{"at": 50.0, "do": "phone_ring"}, {"at": 240.0, "do": "lights_out"}, {"at": 340.0, "do": "stranger_far"}],
+		"events": {"pool": ["footsteps", "knock", "lights_flicker", "whisper", "laugh", "stranger_far", "door_open", "breath", "lights_out"], "every": [65.0, 105.0], "first": 60.0},
+		"scripted": [{"when": "phone", "delay": 8.0, "do": "phone_ring"}, {"after": "pills", "delay": 30.0, "do": "lights_out"}, {"after": "job_search", "delay": 20.0, "do": "stranger_far"}],
 		"night": ["stranger_bed", "whisper_bed"],
 		"sleep_line": "I took none of them. It's still here.",
 		"vm": "vm3",
@@ -123,8 +127,8 @@ const DATA := [
 			{"id": "eat", "text": "Find something to eat", "steps": ["fridge"], "say": ["Everything is rotten.", "I'm not even hungry."]},
 		],
 		"flies": 0.95, "fear": 0.64,
-		"events": {"pool": ["footsteps", "knock", "lights_flicker", "whisper", "laugh", "stranger_far", "stranger_near", "door_open", "breath", "lights_out", "tv_static"], "every": [30.0, 55.0], "first": 25.0},
-		"scripted": [{"at": 40.0, "do": "tv_static"}, {"at": 160.0, "do": "stranger_near"}, {"at": 300.0, "do": "lights_out"}],
+		"events": {"pool": ["footsteps", "knock", "lights_flicker", "whisper", "laugh", "stranger_far", "stranger_near", "door_open", "breath", "lights_out", "tv_static"], "every": [55.0, 95.0], "first": 55.0},
+		"scripted": [{"after": "start", "delay": 70.0, "do": "tv_static"}, {"after": "find_coat", "delay": 35.0, "do": "stranger_near"}, {"after": "eat", "delay": 20.0, "do": "lights_out"}],
 		"night": ["stranger_bed", "whisper_bed"],
 		"sleep_line": "It's wearing something familiar.",
 	},
@@ -136,8 +140,8 @@ const DATA := [
 			{"id": "gallery", "text": "Look through the photos", "steps": ["laptop"], "doc": "photos", "say": ["Empty rooms. Every one.", "I saw it. I saw it standing right there."]},
 		],
 		"flies": 1.0, "fear": 0.76,
-		"events": {"pool": ["footsteps", "lights_flicker", "whisper", "laugh", "stranger_far", "stranger_near", "door_open", "breath", "lights_out", "tv_static", "knock"], "every": [25.0, 45.0], "first": 20.0},
-		"scripted": [{"at": 40.0, "do": "phone_ring"}, {"at": 220.0, "do": "stranger_near"}, {"at": 320.0, "do": "lights_out"}],
+		"events": {"pool": ["footsteps", "lights_flicker", "whisper", "laugh", "stranger_far", "stranger_near", "door_open", "breath", "lights_out", "tv_static", "knock"], "every": [50.0, 85.0], "first": 50.0},
+		"scripted": [{"when": "phone", "delay": 8.0, "do": "phone_ring"}, {"after": "phone", "delay": 45.0, "do": "stranger_near"}, {"after": "gallery", "delay": 25.0, "do": "lights_out"}],
 		"night": ["stranger_bed", "whisper_bed", "stranger_hall"],
 		"sleep_line": "Tomorrow it ends. One way or the other.",
 		"vm": "vm4",
@@ -150,13 +154,69 @@ const DATA := [
 			{"id": "look_photo", "text": "Look at the photo of Mom and Dad", "steps": ["photo_parents"], "doc": "photo_parents", "say": ["I miss them.", "I never told anyone how much."]},
 		],
 		"flies": 1.0, "fear": 0.88,
-		"events": {"pool": ["footsteps", "lights_flicker", "whisper", "laugh", "stranger_near", "breath", "tv_static"], "every": [25.0, 40.0], "first": 20.0},
-		"scripted": [{"at": 30.0, "do": "tv_static"}],
+		"events": {"pool": ["footsteps", "lights_flicker", "whisper", "laugh", "stranger_near", "breath", "tv_static"], "every": [45.0, 70.0], "first": 50.0},
+		"scripted": [{"after": "start", "delay": 45.0, "do": "tv_static"}],
 		"night": [],
 		"sleep_line": "",
 		"final": true,
 	},
 ]
+
+
+## What Martin says to himself when a task begins: the thought comes first, then the objective appears.
+const THINK := {
+	"read_letter": "That letter by the door. I keep walking past it.",
+	"eat": "I have to eat something.",
+	"job_search": "Maybe somebody answered. I should look at the inbox.",
+	"shower": "I need a shower. I can smell myself.",
+	"trash": "The bin is overflowing. I can't keep ignoring it.",
+	"phone": "The phone. Is the machine light blinking?",
+	"search": "Somebody has been in here. I'll go through every room.",
+	"photo": "I need proof. I'll photograph the hall.",
+	"check_door": "Did I lock the front door? I have to check.",
+	"check_window": "The windows. What if it comes in that way?",
+	"pills": "Maybe I should look at what I'm supposed to be taking.",
+	"find_coat": "Where is my coat? It was on the hook.",
+	"gallery": "The photos I took. I should look at them again.",
+	"call_jack": "I should call Jack. I have to say something to him.",
+	"look_photo": "I want to see Mom and Dad.",
+}
+
+## The objective shown at the top of the screen for each step (a task can override with its own `obj` list).
+const OBJ := {
+	"mail": "Look at the mail by the front door",
+	"fridge": "Go to the kitchen",
+	"sofa": "Eat on the sofa",
+	"laptop": "Sit down at the laptop in the living room",
+	"shower": "Go to the bathroom",
+	"trash": "Take the bag from the kitchen corner",
+	"front_door": "Go to the front door",
+	"phone": "Answer the phone in the hall",
+	"wardrobe": "Search the wardrobe in your bedroom",
+	"jack_desk": "Search Jack's old desk in the other bedroom",
+	"dad_boxes": "Search the boxes in the storage room",
+	"photo": "Take a photo of the hall (PHOTO button)",
+	"window_living": "Look out of the living room window",
+	"pills": "Open the cabinet in the bathroom",
+	"photo_parents": "Look at the photo on the TV stand",
+}
+
+
+static func think_for(t: Dictionary) -> String:
+	return str(t.get("think", THINK.get(t["id"], "")))
+
+
+static func objective(t: Dictionary, idx: int) -> String:
+	var steps: Array = t["steps"]
+	idx = clampi(idx, 0, steps.size() - 1)
+	var text := ""
+	if t.has("obj") and (t["obj"] as Array).size() > idx:
+		text = str(t["obj"][idx])
+	else:
+		text = str(OBJ.get(steps[idx], t["text"]))
+	if steps[idx] == PHOTO_STEP and steps.size() > 1:
+		text += " (%d/%d)" % [idx + 1, steps.size()]
+	return text
 
 
 static func get_day(n: int) -> Dictionary:

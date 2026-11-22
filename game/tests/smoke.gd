@@ -68,6 +68,7 @@ func _run() -> void:
 	await physics_frame
 	await physics_frame
 	var space := root.get_world_3d().direct_space_state
+	_check(flat.hang_errors.is_empty(), "no picture, switch or hook sits on a door, arch or window %s" % str(flat.hang_errors))
 
 	for name in Apartment.CELLS:
 		var r: Array = Apartment.CELLS[name]["r"]
@@ -185,6 +186,7 @@ func _run() -> void:
 
 	await _playthrough()
 	await _voicemail_order()
+	await _pacing()
 	await _save_roundtrip()
 	await _fuzz()
 
@@ -326,7 +328,7 @@ const KNOWN_NIGHT := ["footsteps_door", "knock_front", "whisper_bed", "stranger_
 func _check_story_content(flat) -> void:
 	var director = (load("res://scripts/director.gd") as GDScript).new()
 	var valid_ids: Array = flat.use_points.keys() + [Days.PHOTO_STEP, "bed1"]
-	var sounds := ["step_0", "step_3", "cough_0", "cough_1", "knock3", "knock1", "door_creak", "lamp_buzz", "breath", "whisper_0", "whisper_4", "laugh_0", "laugh_1", "tv_static", "phone_ring", "handset", "machine_new", "machine_end", "machine_beep", "shutter", "click", "drip", "heartbeat", "drone", "room_tone", "street", "fridge_hum", "flies_loop", "jack_greeting", "greeting", "vm0"]
+	var sounds := ["step_0", "step_3", "cough_0", "cough_1", "knock3", "knock1", "knock3_front", "switch", "door_creak", "lamp_buzz", "breath", "whisper_0", "whisper_4", "laugh_0", "laugh_1", "tv_static", "phone_ring", "handset", "machine_new", "machine_end", "machine_beep", "shutter", "click", "drip", "heartbeat", "drone", "room_tone", "street", "fridge_hum", "flies_loop", "jack_greeting", "greeting", "vm0"]
 	for n in sounds:
 		_check(Audio.stream(n) != null, "sound '%s' exists" % n)
 	for i in range(1, Days.COUNT + 1):
@@ -384,13 +386,14 @@ func _playthrough() -> void:
 		for t in data["tasks"]:
 			if t.has("vm") or data.has("vm"):
 				await director.fire("phone_ring")
+			await _wait_announce(story, t["id"])
+			_check(hud.objective_text() != "" or story._announced == t["id"], "day %d: '%s' is announced as the objective" % [day, t["id"]])
 			for step in t["steps"]:
 				await _bot_use(story, hud, step)
 			_check(gs.is_done(t["id"]), "day %d: task '%s' completes" % [day, t["id"]])
 		if data.get("final", false):
 			break
-		# Too early to sleep until the day's scripted moments have happened: let the clock run ahead
-		gs.play_seconds = 400.0
+		# The last task being done hurries whatever scripted moments are left; the bed waits for them
 		var tw := Time.get_ticks_msec()
 		while not director.all_scripted_fired() and (Time.get_ticks_msec() - tw) < 90000:
 			director.update(0.1)                       # the world does not run the director in this debug scene
@@ -425,6 +428,16 @@ func _playthrough() -> void:
 	gs.erase()
 	w.queue_free()
 	await process_frame
+	await process_frame
+
+
+## The bot waits for Martin to get to a task (the thought, then the objective).
+func _wait_announce(story, id: String) -> void:
+	story._task_timer = 0.0
+	var hud = story.hud
+	var t0 := Time.get_ticks_msec()
+	while (story._announced != id or hud.objective_text() == "") and (Time.get_ticks_msec() - t0) < 60000:
+		await process_frame
 	await process_frame
 
 
@@ -536,8 +549,10 @@ func _voicemail_order() -> void:
 	gs.new_game()
 	gs.queue_vm("vm0")
 	gs.day = 4
+	gs.finish_task("eat")                               # the phone task comes second
 	await story.start_day()
-	_check(gs.pending == ["vm0", "vm1"], "day 4 starts with the old and the new message waiting")
+	await _wait_announce(story, "phone")
+	_check(gs.pending == ["vm0", "vm1"], "day 4: the old and the new message are waiting once the phone task begins")
 	await _bot_use(story, hud, "phone")
 	_check(gs.heard.has("vm0") and gs.heard.has("vm1") and gs.pending.is_empty(), "both messages are heard, oldest first")
 	_check(gs.is_done("phone"), "day 4: the phone task completes once vm1 has played")
@@ -546,9 +561,56 @@ func _voicemail_order() -> void:
 	gs.queue_vm("vm2")
 	gs.day = 7
 	await story.start_day()
+	await _wait_announce(story, "phone")
 	_check(not gs.is_done("phone"), "day 7: the phone task is not done before anyone answers")
 	await _bot_use(story, hud, "phone")
 	_check(gs.heard.has("vm2") and gs.heard.has("vm3") and gs.is_done("phone"), "day 7: vm3 is heard and finishes the task even with vm2 unheard")
+	w.queue_free()
+	await process_frame
+	Engine.time_scale = 1.0
+
+
+## The pacing: one task at a time, a thought before each objective, a quiet stretch after it.
+func _pacing() -> void:
+	Engine.time_scale = 10.0
+	Engine.set_meta("overrides", {"spawn": "door", "no_title": "1"})
+	var w = (load("res://scenes/world.tscn") as PackedScene).instantiate()
+	root.add_child(w)
+	await process_frame
+	await process_frame
+	var story = w._story
+	var hud = w._hud
+	w._director.enabled = false
+	gs.new_game()
+	await story.start_day()
+	var fresh = (load("res://scripts/settings.gd") as GDScript).new()
+	_check(fresh.fx == 2 and fresh.render_height == 360 and fresh.shadows == 2, "default settings: pixel filter MID, 360p, shadows on all")
+	fresh.free()
+	_check(story._announced == "" and hud.objective_text() == "", "day 1 starts with no objective: time to look around")
+	_check(story._task_timer > 20.0, "day 1 waits %.0f s before Martin thinks about the first task" % story._task_timer)
+	story.on_used("fridge")                             # something that is not the objective yet
+	await process_frame
+	_check(gs.step_index.get("eat", 0) == 0 and not gs.is_done("read_letter"), "nothing counts before the task is announced")
+	await _wait_announce(story, "read_letter")
+	_check(hud.objective_text() == Days.OBJ["mail"], "the first objective is '%s'" % hud.objective_text())
+	story.on_used("fridge")                             # a later task's step does nothing
+	await process_frame
+	_check(gs.step_index.get("eat", 0) == 0, "only the current task accepts steps")
+	await _bot_use(story, hud, "mail")
+	_check(gs.is_done("read_letter"), "the letter is done")
+	_check(hud.objective_text() == "" and story._task_timer > 20.0, "a quiet stretch follows a task (%.0f s)" % story._task_timer)
+	var listed: Array = story._task_list(Days.get_day(1))
+	_check(listed.size() == 2, "Martin's list shows what is done and what is next, not the whole day (%d lines)" % listed.size())
+	await _wait_announce(story, "eat")
+	_check(hud.objective_text() == Days.OBJ["fridge"], "eat starts in the kitchen: '%s'" % hud.objective_text())
+	await _bot_use(story, hud, "fridge")
+	_check(hud.objective_text() == Days.OBJ["sofa"], "the objective moves on with the step: '%s'" % hud.objective_text())
+	# every step of every task has an objective, and every task a thought
+	for d in Days.DATA:
+		for t in d["tasks"]:
+			_check(Days.think_for(t) != "", "task '%s' has a thought" % t["id"])
+			for i in (t["steps"] as Array).size():
+				_check(Days.objective(t, i) != "", "task '%s' step %d has an objective" % [t["id"], i])
 	w.queue_free()
 	await process_frame
 	Engine.time_scale = 1.0

@@ -93,6 +93,8 @@ const SWITCHES := [
 	["bed2", -1.5, -5.67, Vector3(0, 0, -1)],
 ]
 
+var switch_at := {}                    ## room -> where its light switch is
+var hang_errors: Array = []            ## wall items that would have sat on a door, arch or window (the test wants none)
 var doors := {}                        ## name -> Door
 var door_info := {}                    ## name -> {center, normal (toward the swing side), w}
 var lamps := {}                        ## cell -> Array of {light, bulb}
@@ -372,6 +374,24 @@ func _casing(o: Dictionary, axis: String, fixed: float, t: float, neg: String, p
 		box(hp, hsize, ["trim", layer], {}, false)
 
 
+## Wall items (pictures, switches, hooks) must not sit on a door, an arch or a window: a door swings away and
+## leaves them hanging in the air. `axis` is the wall's axis (a wall at constant x has axis "x").
+func hang_ok(item: String, pos: Vector3, axis: String, half: float, y0: float, y1: float) -> bool:
+	var fixed := pos.x if axis == "x" else pos.z
+	var along := pos.z if axis == "x" else pos.x
+	for o in OPENINGS:
+		if o["axis"] != axis or absf(float(o["fixed"]) - fixed) > 0.4:
+			continue
+		if absf(float(o["c"]) - along) >= float(o["w"]) * 0.5 + half + 0.05:
+			continue
+		var lo: float = o.get("sill", 0.0)
+		var hi: float = o.get("top", DOOR_H)
+		if y1 > lo and y0 < hi:
+			hang_errors.append("%s overlaps the %s at %s" % [item, o["kind"], o["c"]])
+			return false
+	return true
+
+
 # --- doors -------------------------------------------------------------------
 
 func _door_leaf_mesh(width: float) -> ArrayMesh:
@@ -495,7 +515,7 @@ func _make_window(o: Dictionary, axis: String, fixed: float, t: float, neg: Stri
 	var quad_mesh := QuadMesh.new()
 	quad_mesh.size = Vector2(w, h)
 	pane.mesh = quad_mesh
-	pane.material_override = _sky_mat()
+	pane.material_override = _sky_mat(not o["cur"])
 	pane.layers = layer
 	pane.position = _wp(axis, fixed, c, cy, -side * (t * 0.5 + 0.06))
 	pane.rotation.y = atan2(n.x, n.z)
@@ -519,88 +539,150 @@ func _make_window(o: Dictionary, axis: String, fixed: float, t: float, neg: Stri
 		var rw := minf(w, 1.2)
 		if not model("radiator", _wp(axis, fixed, c, 0.08, off + side * 0.06), Basis(Vector3.UP, yaw_in) * Basis.from_scale(Vector3(rw, 1.0, 1.0)), layer):
 			box(_wp(axis, fixed, c, 0.38, off + side * 0.06), sz.call(rw, 0.09, 0.5), ["white", layer], {}, false)
-	if o["cur"]:
+	if o["cur"]:                                                # drawn across the window, with a gap in the middle
+		var gap := maxf(w * 0.14, 0.14)
+		var cw := (w + 0.12 - gap) * 0.5
+		var ch := top + 0.25 - sill + 0.1
 		for e in [-1.0, 1.0]:
-			var cw := 0.34 if e < 0 else 0.42
-			var ch := top + 0.25 - sill + 0.1
-			var cp := _wp(axis, fixed, c + e * (w * 0.5 + 0.1 + cw * 0.5 - 0.04), sill - 0.1, off + side * 0.08)
+			var cp := _wp(axis, fixed, c + e * (w * 0.5 + 0.06 - cw * 0.5), sill - 0.1, off + side * 0.08)
 			if not model("curtain", cp, Basis(Vector3.UP, yaw_in) * Basis.from_scale(Vector3(cw, ch, 1.0)), layer):
-				box(_wp(axis, fixed, c + e * (w * 0.5 + 0.1 + cw * 0.5 - 0.04), (top + 0.25 + sill - 0.1) * 0.5, off + side * 0.09),
+				box(_wp(axis, fixed, c + e * (w * 0.5 + 0.06 - cw * 0.5), (top + 0.25 + sill - 0.1) * 0.5, off + side * 0.09),
 					sz.call(cw, 0.07, ch), ["curtain", layer], {}, false)
 		box(_wp(axis, fixed, c, top + 0.2, off + side * 0.1), sz.call(w + 0.7, 0.03, 0.03), ["brass", layer], {}, false)
 
 
-var _sky: StandardMaterial3D
+var _sky_mats := {}                   ## "curtain" / "blind" -> the material of the view
 var _skyline := {}
+var _sky_figure := false
+var _sky_tint := Color(1, 1, 1)
 
 
-## The view from every window: a dusk gradient and the dark blocks of the building opposite, some windows lit.
-## From day 6 one lit window across the street has someone standing in it.
-func _sky_texture(with_figure: bool) -> ImageTexture:
-	if _skyline.has(with_figure):
-		return _skyline[with_figure]
-	var w := 128
-	var h := 64
+## The view from every window: a wet, dark night. Street lamps glow orange through the haze, two rows of
+## buildings with a few lit windows, rain streaks and droplets on dirty glass. Windows without curtains get a
+## venetian blind drawn over the top half. From day 6 a lit window across the street has someone standing in it
+## (at the middle of the pane, where the curtains leave their gap).
+func _sky_texture(with_figure: bool, blind: bool) -> ImageTexture:
+	var key := "%s%s" % [with_figure, blind]
+	if _skyline.has(key):
+		return _skyline[key]
+	var w := 256
+	var h := 128
 	var img := Image.create(w, h, false, Image.FORMAT_RGB8)
-	for y in h:
-		var t := float(y) / float(h - 1)
-		var c := Color(0.20, 0.23, 0.28).lerp(Color(0.34, 0.37, 0.42), t)
-		for x in w:
-			img.set_pixel(x, y, c)
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 12
-	var x := 0
-	while x < w:
-		var bw := rng.randi_range(10, 22)
-		var bh := rng.randi_range(18, 46)
-		var shade := rng.randf_range(0.05, 0.09)
-		for yy in range(h - bh, h):
-			for xx in range(x, mini(x + bw - 1, w)):
-				img.set_pixel(xx, yy, Color(shade, shade * 1.1, shade * 1.4))
-		for wy in range(h - bh + 4, h - 3, 6):
-			for wx in range(x + 3, x + bw - 4, 5):
-				var lit := rng.randf() < 0.22
-				var wc := Color(0.82, 0.66, 0.35) if lit else Color(0.09, 0.1, 0.13)
-				for dy in 3:
-					for dx in 3:
-						if wx + dx < w and wy + dy < h:
-							img.set_pixel(wx + dx, wy + dy, wc)
-		x += bw
+	for y in h:
+		var t := float(y) / float(h - 1)
+		var c := Color(0.018, 0.022, 0.04).lerp(Color(0.16, 0.115, 0.09), pow(t, 1.9))
+		for x in w:
+			img.set_pixel(x, y, c)
+	_glow(img, 44, 104, 36, 0.5)
+	_glow(img, 150, 112, 44, 0.45)
+	_glow(img, 226, 98, 28, 0.4)
+	_buildings(img, rng, 28, 70, Color(0.05, 0.055, 0.075), 0.0, with_figure)
+	_buildings(img, rng, 40, 96, Color(0.012, 0.013, 0.02), 0.11, with_figure)
 	if with_figure:                                     # a lit window, and a dark shape standing in it
-		var fx := 78
-		var fy := 30
-		for dy in 9:
-			for dx in 7:
-				img.set_pixel(fx + dx, fy + dy, Color(0.9, 0.78, 0.45))
-		for dy in range(2, 9):
-			for dx in range(2, 5):
-				img.set_pixel(fx + dx, fy + dy, Color(0.03, 0.03, 0.04))
-		for dy in range(0, 3):
-			for dx in range(2, 5):
-				img.set_pixel(fx + dx, fy + dy + 1, Color(0.03, 0.03, 0.04))
+		var fx := 124
+		var fy := 52
+		for dy in 15:
+			for dx in 12:
+				img.set_pixel(fx + dx, fy + dy, Color(0.85, 0.68, 0.36))
+		for dy in range(3, 15):
+			for dx in range(4, 8):
+				img.set_pixel(fx + dx, fy + dy, Color(0.025, 0.025, 0.03))
+		for dy in range(1, 6):
+			for dx in range(4, 8):
+				img.set_pixel(fx + dx, fy + dy, Color(0.025, 0.025, 0.03))
+	for i in 110:                                       # rain streaks
+		var sx := rng.randi_range(0, w - 1)
+		var sy := rng.randi_range(0, h - 24)
+		var len := rng.randi_range(7, 22)
+		var a := rng.randf_range(0.07, 0.2)
+		for k in len:
+			var px := sx + int(float(k) * 0.12)
+			if px < w and sy + k < h:
+				img.set_pixel(px, sy + k, img.get_pixel(px, sy + k) + Color(0.5, 0.56, 0.66) * a)
+	for i in 16:                                        # droplets on the glass
+		var dx := rng.randi_range(2, w - 3)
+		var dy := rng.randi_range(2, h - 8)
+		img.set_pixel(dx, dy, img.get_pixel(dx, dy) + Color(0.35, 0.33, 0.3))
+		img.set_pixel(dx, dy + 1, img.get_pixel(dx, dy + 1) * 0.55)
+	if blind:                                           # the top of the window is behind a slatted blind
+		for y in int(float(h) * 0.64):
+			if y % 8 < 6:
+				for x in w:
+					var shade := 0.14 + 0.05 * sin(float(x) * 0.07 + float(y))
+					img.set_pixel(x, y, img.get_pixel(x, y) * 0.12 + Color(shade * 1.1, shade, shade * 0.9))
+	for y in h:                                         # dirt thickens toward the edges and the sill
+		for x in w:
+			var u := absf(float(x) / float(w - 1) - 0.5) * 2.0
+			var v := float(y) / float(h - 1)
+			var dirt := 1.0 - 0.5 * pow(maxf(u, absf(v - 0.5) * 2.0), 3.0) - 0.18 * pow(v, 6.0)
+			img.set_pixel(x, y, img.get_pixel(x, y) * dirt)
 	var tex := ImageTexture.create_from_image(img)
-	_skyline[with_figure] = tex
+	_skyline[key] = tex
 	return tex
 
 
-func _sky_mat() -> StandardMaterial3D:
-	if _sky:
-		return _sky
-	_sky = StandardMaterial3D.new()
-	_sky.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	_sky.albedo_texture = _sky_texture(false)
-	_sky.texture_filter = BaseMaterial3D.TEXTURE_FILTER_NEAREST
-	return _sky
+func _glow(img: Image, cx: int, cy: int, r: int, strength: float) -> void:
+	for y in range(maxi(cy - r, 0), mini(cy + r, img.get_height())):
+		for x in range(maxi(cx - r, 0), mini(cx + r, img.get_width())):
+			var d := Vector2(float(x - cx), float(y - cy) * 1.3).length() / float(r)
+			if d < 1.0:
+				img.set_pixel(x, y, img.get_pixel(x, y) + Color(0.95, 0.55, 0.2) * (pow(1.0 - d, 2.0) * strength))
+
+
+## One row of buildings along the bottom of the view. `lit`: the chance that a window has a light on.
+func _buildings(img: Image, rng: RandomNumberGenerator, min_h: int, max_h: int, base: Color, lit: float, keep_gap: bool) -> void:
+	var w := img.get_width()
+	var h := img.get_height()
+	var x := -4
+	while x < w:
+		var bw := rng.randi_range(18, 40)
+		var bh := rng.randi_range(min_h, max_h)
+		var shade := rng.randf_range(0.85, 1.15)
+		for yy in range(h - bh, h):
+			for xx in range(maxi(x, 0), mini(x + bw - 1, w)):
+				img.set_pixel(xx, yy, base * shade)
+		if lit > 0.0:
+			for wy in range(h - bh + 6, h - 4, 9):
+				for wx in range(x + 4, x + bw - 6, 7):
+					if rng.randf() < lit and (wx < 112 or wx > 148):
+						var cold := rng.randf() < 0.25
+						var wc := Color(0.3, 0.42, 0.62) if cold else Color(0.78, 0.58, 0.28)
+						for dy in 4:
+							for dx in 4:
+								if wx + dx < w and wy + dy < h:
+									img.set_pixel(wx + dx, wy + dy, wc * rng.randf_range(0.7, 1.0))
+		x += bw
+	if lit > 0.0:                                       # the building that holds the figure's window
+		for yy in range(h - 88, h):
+			for xx in range(106, 150):
+				img.set_pixel(xx, yy, Color(0.012, 0.013, 0.02))
+
+
+func _sky_mat(blind: bool) -> StandardMaterial3D:
+	var k := "blind" if blind else "curtain"
+	if _sky_mats.has(k):
+		return _sky_mats[k]
+	var m := StandardMaterial3D.new()
+	m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	m.albedo_texture = _sky_texture(_sky_figure, blind)
+	m.albedo_color = _sky_tint
+	m.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR
+	_sky_mats[k] = m
+	return m
 
 
 func set_skyline(figure: bool) -> void:
-	if _sky:
-		_sky.albedo_texture = _sky_texture(figure)
+	_sky_figure = figure
+	for k in _sky_mats:
+		(_sky_mats[k] as StandardMaterial3D).albedo_texture = _sky_texture(figure, k == "blind")
 
 
 func set_window_light(tint: Color) -> void:
-	if _sky:
-		_sky.albedo_color = tint
+	_sky_tint = tint
+	for k in _sky_mats:
+		(_sky_mats[k] as StandardMaterial3D).albedo_color = tint
 
 
 # --- lamps and switches -----------------------------------------------------------
@@ -612,10 +694,16 @@ func _lamps_and_switches() -> void:
 		var facing: Vector3 = s[3]
 		var pos := Vector3(s[1], 1.25, s[2])
 		var size := Vector3(0.02, 0.12, 0.08) if facing.x != 0.0 else Vector3(0.08, 0.12, 0.02)
+		hang_ok("light switch in %s" % s[0], pos, "x" if facing.x != 0.0 else "z", 0.06, 1.19, 1.31)
 		box(pos, size, ["trim", layer_of(s[0])], {}, false)
 		var sw := _interactable("Light", Vector3(0.35, 0.35, 0.35), pos + facing * 0.1)
 		var room: String = s[0]
-		sw.interacted.connect(func() -> void: toggle_room(room))
+		switch_at[room] = pos
+		sw.interacted.connect(func() -> void:
+			var sfx := get_node_or_null("/root/Sfx")                # (looked up at run time: tests compile this class without autoloads)
+			if sfx:
+				sfx.call("play_at", "switch", pos, -2.0, 8.0, 2.0)
+			toggle_room(room))
 
 
 ## A ceiling lamp: the light, a fitting, and a glowing bulb that go on and off together.

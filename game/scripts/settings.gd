@@ -5,15 +5,15 @@ signal changed
 
 const PATH := "user://settings.cfg"
 const RENDER_HEIGHTS := [0, 360, 480, 540, 720, 1080]     ## 0 = AUTO: the game steps between 360 and 720 to hold about 30 fps
-const VERSION := 7                 ## stored with the file; older looks are discarded
+const VERSION := 8                 ## stored with the file; older looks are discarded (8: new defaults, 360p / pixel MID / shadows on all)
 
 var look_sensitivity: float = 0.0045   ## radians per UI pixel dragged
-var render_height: int = 0             ## height of the 3D image (0 = AUTO); the screen is upscaled from it
+var render_height: int = 360           ## height of the 3D image (0 = AUTO); the screen is upscaled from it
 var brightness: float = 1.0
 var grade: int = 0                     ## index into Film.GRADES
-var fx: int = 4                        ## pixel/dither filter: 0 off, 1-3 fixed, 4 = AUTO (follows fear)
+var fx: int = 2                        ## pixel/dither filter: 0 off, 1-3 fixed (2 = MID), 4 = AUTO (follows fear)
 var msaa: int = 0                      ## 0 off, 1 = 2x, 2 = 4x
-var shadows: int = 0                   ## 0 off, 1 corridor lamps, 2 every lamp
+var shadows: int = 2                   ## 0 off, 1 hall lamps, 2 every lamp
 var show_debug: bool = false
 var reduce_flash: bool = false        ## calmer picture: no strobing lamps, blinks, throbbing or tearing
 var volume: float = 1.0                ## master volume 0..1

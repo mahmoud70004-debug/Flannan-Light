@@ -51,8 +51,9 @@ def knock():
     return (lp(noise(0.3), 900) * env_exp(n, 0.03) + np.sin(2 * np.pi * 150 * t(0.3)) * env_exp(n, 0.05) * 0.8)
 k3 = np.zeros(int(1.6 * SR))
 for at in (0.05, 0.38, 0.72): place(k3, knock() * (0.9 + 0.2 * rng.random()), at)
-save("knock3", reverb(k3, 0.5, 0.2))
-k1 = np.zeros(int(0.9 * SR)); place(k1, knock() * 1.3, 0.02); save("knock1", reverb(k1, 0.5, 0.2))
+# knock3 / knock1 / flies_loop now come from real recordings (make_user_sounds.py); the synthetic ones are not saved
+_ = reverb(k3, 0.5, 0.2)
+
 bang = np.zeros(int(1.4 * SR)); place(bang, lp(noise(0.6), 700) * env_exp(int(0.6 * SR), 0.12) + np.sin(2 * np.pi * 70 * t(0.6)) * env_exp(int(0.6 * SR), 0.18), 0.0)
 save("door_slam", reverb(bang, 0.9, 0.35))
 
@@ -81,7 +82,7 @@ wing = np.sin(2 * np.pi * wob) + 0.5 * np.sin(4 * np.pi * wob)
 gate = np.clip(lp(np.abs(noise(4.0)), 6, 1) * 4 - 0.4, 0, 1) ** 0.7                    # flies come and go
 fl = (wing * 0.6 + bp(noise(4.0), 1500, 3800) * 0.35) * (0.35 + 0.65 * gate)
 fl *= 1 + 0.5 * np.sin(2 * np.pi * 38 * tt)
-save("flies_loop", loopify(fl), 0.7)
+_ = loopify(fl)
 
 # --- ambience ----------------------------------------------------------------------------------------
 n = 10.0
