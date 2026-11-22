@@ -950,6 +950,24 @@ func make_movable(id: String, cell: String, pos: Vector3, parts: Array, yaw := 0
 func set_movable_visible(id: String, on: bool) -> void:
 	if movables.has(id):
 		(movables[id] as Node3D).visible = on
+		for c in (movables[id] as Node3D).get_children():
+			if c is StaticBody3D:
+				(c as StaticBody3D).collision_layer = 1 if on else 0              # a thing you can see is a thing you cannot walk through
+
+
+## A solid body for a movable: it blocks the player only while the movable is shown.
+func add_movable_solid(id: String, center: Vector3, size: Vector3) -> void:
+	if not movables.has(id):
+		return
+	var body := StaticBody3D.new()
+	body.collision_layer = 1 if (movables[id] as Node3D).visible else 0
+	var shape := CollisionShape3D.new()
+	var bs := BoxShape3D.new()
+	bs.size = size
+	shape.shape = bs
+	shape.position = center
+	body.add_child(shape)
+	(movables[id] as Node3D).add_child(body)
 
 
 func setup_tv(pos: Vector3, w: float, h: float) -> void:

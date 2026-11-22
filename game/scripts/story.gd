@@ -46,6 +46,7 @@ var _night_loops: Array = []              ## looping sounds that belong to the d
 var _dread := 0.0                         ## 0..1: time spent in the dark at night; at 1 he loses the time
 var _hall_goes_dark := false
 var _lost_time := false
+var _dread_hint := false
 var _announced := ""                      ## the task whose objective is on screen ("_sleep": go to bed; "": a quiet spell)
 var _task_timer := -1.0                   ## seconds until the next thought and objective (< 0: none pending)
 var last_knock := -999.0
@@ -69,9 +70,11 @@ func _process(delta: float) -> void:
 	var next := Days.get_day(mini(GameState.day + 1, Days.COUNT))
 	var prog := _task_progress(d) * 0.8                                          # the fear follows what has been done, not the clock
 	fear = clampf(lerpf(d["fear"], next["fear"], prog) + 0.04 * sin(_clock * 0.6) + _spike, 0.0, 1.0)
+	fear = clampf(fear + _dread * 0.4, 0.0, 1.0)                                   # the dark makes everything worse
 	if fear_override >= 0.0:
 		fear = fear_override
 	_check_anomalies(delta)
+	_light_rule()
 	_night_tick(delta)
 	if _task_timer >= 0.0 and is_free():
 		_task_timer = maxf(_task_timer - delta, 0.0)
@@ -117,6 +120,13 @@ func _give_hint() -> void:
 
 ## Looking at something that is out of place for a moment makes Martin notice it: a line, a note in the notebook,
 ## a low thump. Nothing is pressed; the room just tells him.
+func _light_rule() -> void:
+	if director.enabled and not _final_stage and stranger.state != Stranger.State.HIDDEN and not stranger.final_mode:
+		var sc := apartment.cell_at(stranger.global_position)
+		if sc != "" and apartment.room_lit(sc):
+			stranger.vanish()                              # it cannot stand in the light, in any phase
+
+
 func _check_anomalies(delta: float) -> void:
 	if _phase != "day" or not is_free() or hud.is_talking():
 		return
@@ -315,7 +325,7 @@ func start_day() -> void:
 	player.velocity = Vector3.ZERO
 	var intro: Array = (data["intro"] as Array).duplicate()
 	if _lost_time and GameState.day > 1:
-		intro.insert(0, "I don't remember coming back to bed.")
+		intro.insert(0, "I don't remember the rest of the night.")
 	_lost_time = false
 	await hud.card([data["title"] + "  ·  " + data["sub"]] + intro)
 	var wake_note: String = Days.WAKE_EVIDENCE.get(data.get("wake", "bed1"), "")
@@ -700,6 +710,7 @@ func _night(data: Dictionary) -> void:
 	_phase = "night"
 	_night_found = false
 	_dread = 0.0
+	_dread_hint = false
 	_hall_goes_dark = bool(n.get("dark", false))
 	for c in apartment.lamps:
 		apartment.set_room_lit(c, c == "hall")
@@ -794,35 +805,18 @@ func _night_used(id: String, data: Dictionary) -> void:
 	await hud.wait_lines()
 	busy = false
 	hud.set_objective("Go back to bed")
-	if str(n.get("stranger", "")) != "":
+	if n.has("figure"):
 		await get_tree().create_timer(3.5).timeout
-		_spawn_stranger_in(str(n["stranger"]))
+		_spawn_figure(n)
 
 
-## Puts the stranger in a dark room, where the player has a clear line to it but is not looking.
-func _spawn_stranger_in(room: String) -> void:
-	if stranger.state != Stranger.State.HIDDEN:
+## The figure takes its place for the night: a fixed spot behind or beside where the player will be, so that
+## turning round (or looking up from what he found) shows it. It never pops into view; it is simply there.
+func _spawn_figure(n: Dictionary) -> void:
+	if stranger.state != Stranger.State.HIDDEN or not n.has("figure"):
 		return
-	var cells := {"hall": ["hall"], "living": ["living"], "bed2": ["bed2"]}
-	var space := player.get_world_3d().direct_space_state
-	var spots: Array = apartment.stranger_spots.duplicate()
-	spots.shuffle()
-	for sp in spots:
-		var c := apartment.cell_at(sp)
-		if not (c in cells.get(room, [room])) or apartment.room_lit(c):
-			continue
-		var d := Vector2(sp.x - player.global_position.x, sp.z - player.global_position.z).length()
-		if d < 3.5 or d > 12.0:
-			continue
-		if player.camera.is_position_in_frustum(sp + Vector3(0, 1.75, 0)):
-			continue
-		var q := PhysicsRayQueryParameters3D.create(player.camera.global_position, sp + Vector3(0, 1.75, 0))
-		q.collision_mask = 1
-		if not space.intersect_ray(q).is_empty():
-			continue
-		stranger.place(sp)
-		boost_fear(0.2)
-		return
+	stranger.place(n["figure"])
+	boost_fear(0.2)
 
 
 ## While the player is in the dark at night: the hall light goes out as he enters the hall, time in the dark
@@ -843,11 +837,10 @@ func _night_tick(delta: float) -> void:
 		_dread = minf(_dread + delta / 28.0, 1.0)
 	else:
 		_dread = maxf(_dread - delta / 6.0, 0.0)
-	fear_override = clampf(_dread * 0.5, 0.0, 1.0) if _dread > 0.05 else -1.0
-	if stranger.state != Stranger.State.HIDDEN and not stranger.final_mode:
-		var sc := apartment.cell_at(stranger.global_position)
-		if sc != "" and apartment.room_lit(sc):
-			stranger.vanish()                              # it cannot stand in the light
+	if _dread > 0.6 and not _dread_hint:
+		_dread_hint = true
+		hud.say("I need a light.")
+		Sfx.play("heartbeat", -8.0)
 	if _dread >= 1.0:
 		_lose_time()
 
@@ -859,7 +852,6 @@ func _lose_time() -> void:
 	busy = true
 	_lost_time = true
 	_dread = 0.0
-	fear_override = -1.0
 	Sfx.play("heartbeat", -3.0)
 	hud.set_objective("")
 	stranger.vanish()
@@ -872,7 +864,7 @@ func _lose_time() -> void:
 func _end_night() -> void:
 	busy = true
 	_phase = "day"
-	fear_override = -1.0
+	_dread = 0.0
 	_clear_loops()
 	stranger.vanish()
 	hud.set_objective("")

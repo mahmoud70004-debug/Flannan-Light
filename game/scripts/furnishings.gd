@@ -421,7 +421,7 @@ static func _bed2(a: Apartment) -> void:
 ## The things that are out of place on particular days (see Days.ANOMALY). All hidden until a day asks for them;
 ## none has a collider, so they sit along walls and never in the way.
 static func _anomalies(a: Apartment) -> void:
-	# a dining chair outside his bedroom door, facing it
+	# a dining chair in the hall against the wall opposite his bedroom door, facing it (clear of the bath and storage doors)
 	var chair: Array = []
 	var cm := "dark_wood"
 	chair.append([Vector3(0, 0.45, 0), Vector3(0.42, 0.04, 0.42), cm])
@@ -429,7 +429,8 @@ static func _anomalies(a: Apartment) -> void:
 	for sx in [-1.0, 1.0]:
 		for sz in [-1.0, 1.0]:
 			chair.append([Vector3(sx * 0.18, 0.22, sz * 0.18), Vector3(0.04, 0.44, 0.04), cm])
-	a.make_movable("hall_chair", "hall", Vector3(-4.9, 0.0, -4.5), chair, 0.0, false)
+	a.make_movable("hall_chair", "hall", Vector3(-3.7, 0.0, -4.5), chair, 0.0, false)
+	a.add_movable_solid("hall_chair", Vector3(0, 0.45, 0), Vector3(0.44, 0.9, 0.44))
 	# grey bare footprints from his bedroom door, down the hall, to the living room
 	var prints: Array = []
 	var path := [Vector3(-4.9, 0, -5.45), Vector3(-4.9, 0, -4.9), Vector3(-1.0, 0, -4.9), Vector3(0.1, 0, -5.8), Vector3(0.15, 0, -7.35)]
@@ -446,10 +447,10 @@ static func _anomalies(a: Apartment) -> void:
 			var off := Vector3(0, 0, side * 0.09) if along_x else Vector3(side * 0.09, 0, 0)
 			var fwd := dir.normalized()
 			var q := p + off + Vector3(0, 0.008, 0)
-			var ball := Vector3(0.1, 0.006, 0.12) if along_x else Vector3(0.12, 0.006, 0.1)
-			var heel := Vector3(0.07, 0.006, 0.07)
-			prints.append([q + fwd * 0.07, ball, "paper"])                    # the ball of the foot
-			prints.append([q - fwd * 0.1, heel, "paper"])                     # the heel, with a gap of bare floor between
+			var ball := Vector3(0.12, 0.006, 0.14) if along_x else Vector3(0.14, 0.006, 0.12)
+			var heel := Vector3(0.08, 0.006, 0.08)
+			prints.append([q + fwd * 0.07, ball, "sheet"])                    # the ball of the foot
+			prints.append([q - fwd * 0.1, heel, "sheet"])                     # the heel, with a gap of bare floor between
 			side = -side
 	a.make_movable("prints", "hall", Vector3.ZERO, prints, 0.0, false)
 	# his coat on the floor inside the front door
@@ -459,7 +460,7 @@ static func _anomalies(a: Apartment) -> void:
 	# Dad's boxes, opened and spilled across the storage room floor
 	var boxes: Array = []
 	for i in 7:
-		boxes.append([Vector3(sin(float(i) * 2.1) * 0.5, 0.1 + float(i % 2) * 0.1, cos(float(i) * 1.7) * 0.4), Vector3(0.34 + 0.06 * float(i % 3), 0.2, 0.3), "cardboard"])
+		boxes.append([Vector3(sin(float(i) * 2.1) * 0.5, 0.04, cos(float(i) * 1.7) * 0.4), Vector3(0.34 + 0.06 * float(i % 3), 0.07, 0.3), "cardboard"])      # opened and flattened: you step over them
 		boxes.append([Vector3(sin(float(i) * 1.3 + 1.0) * 0.7, 0.012, cos(float(i) * 2.3) * 0.55), Vector3(0.24, 0.012, 0.32), "paper"])
 	a.make_movable("boxes_out", "storage", Vector3(-2.45, 0.0, -3.0), boxes, 0.0, false)
 	# the tub has run over: a wide dark pool of water on the tiles

@@ -190,6 +190,7 @@ func _run() -> void:
 	await _playthrough()
 	await _voicemail_order()
 	await _pacing()
+	await _dark_hall()
 	await _save_roundtrip()
 	await _fuzz()
 
@@ -266,6 +267,7 @@ func _walk(player, dir: Vector2, seconds: float) -> void:
 ## Everything must be connected (no pocket you can see but never reach), every prop the game uses
 ## must be within reach of a reachable spot, and each room must be mostly walkable.
 func _reachability(flat) -> void:
+	flat.set_day_state(Days.ANOMALY.keys(), ["hall"], true)           # the worst case: every anomaly at once, every door open
 	for d in flat.doors:
 		flat.doors[d].set_open(true, false)
 	await physics_frame
@@ -359,7 +361,10 @@ func _check_story_content(flat) -> void:
 		if not night.is_empty():
 			_check(night["cue"] in ["tap", "knock", "chair", "phone", "breath", "clock", "steps", "tv", "chain"], "day %d: night cue '%s' exists" % [i, night["cue"]])
 			_check(night["target"] in valid_ids and night["found"].size() > 0 and night["evidence"] != "", "day %d: the night's target '%s' is something in the flat" % [i, night["target"]])
-			_check(night["stranger"] in ["", "hall", "living", "bed2"], "day %d: the night's figure is placed in a real room" % i)
+			if night.has("figure"):
+				
+				_check(flat.cell_at(night["figure"]) != "", "day %d: the night's figure is inside the flat" % i)
+			_check(night.has("figure") == (i >= 4), "day %d: the figure comes from night 4" % i)
 			_check((i <= 2) == (not night["dark"]), "day %d: the first two nights teach (light), the rest are dark" % i)
 		_check(d["tasks"][-1]["id"] == "lock_up" or d.get("final", false), "day %d ends with locking up (the rules are the routine)" % i)
 		_check(d["fear"] >= 0.0 and d["fear"] <= 1.0 and d["flies"] >= 0.0, "day %d: fear and flies are in range" % i)
@@ -660,6 +665,58 @@ func _voicemail_order() -> void:
 	_check(not gs.is_done("phone"), "day 7: the phone task is not done before anyone answers")
 	await _bot_use(story, hud, "phone")
 	_check(gs.heard.has("vm2") and gs.heard.has("vm3") and gs.is_done("phone"), "day 7: vm3 is heard and finishes the task even with vm2 unheard")
+	w.queue_free()
+	await process_frame
+	Engine.time_scale = 1.0
+
+
+## Night 3, the dark hall: the light goes out as he steps in, time in the dark builds dread, a light clears it, and
+## too long in the dark loses the time. Then every night's figure can be placed.
+func _dark_hall() -> void:
+	Engine.time_scale = 10.0
+	Engine.set_meta("overrides", {"spawn": "door", "no_title": "1"})
+	var w = (load("res://scenes/world.tscn") as PackedScene).instantiate()
+	root.add_child(w)
+	await process_frame
+	await process_frame
+	var story = w._story
+	var hud = w._hud
+	var apartment: Apartment = w._apartment
+	var player = w._player
+	gs.new_game()
+	gs.day = 3
+	w._director.enabled = false
+	await story.start_day()
+	for t in Days.get_day(3)["tasks"]:
+		gs.finish_task(t["id"])
+	story.on_used("bed1")
+	var t0 := Time.get_ticks_msec()
+	while (story._phase != "night" or hud.objective_text() == "") and (Time.get_ticks_msec() - t0) < 60000:
+		await process_frame
+	_check(story._phase == "night" and apartment.room_lit("hall") and not apartment.room_lit("kitchen"), "night 3: only the hall light is on when he wakes")
+	player.global_position = Vector3(-3.4, 0.05, -4.9)
+	await create_timer(0.5).timeout
+	_check(not apartment.room_lit("hall"), "the hall light goes out as he steps into the hall")
+	await create_timer(1.0).timeout
+	_check(story._dread > 0.05, "time in the dark builds dread (%.2f)" % story._dread)
+	var base_fear: float = story.fear
+	_check(base_fear > 0.2 + 0.05, "the dark adds to the fear (%.2f)" % base_fear)
+	apartment.set_room_lit("hall", true)
+	await create_timer(1.5).timeout
+	_check(story._dread < 0.05, "a light clears the dread (%.2f)" % story._dread)
+	apartment.set_room_lit("hall", false)
+	t0 = Time.get_ticks_msec()
+	while gs.day == 3 and (Time.get_ticks_msec() - t0) < 60000:
+		await process_frame
+	_check(gs.day == 4 and gs.has_evidence("lost_3"), "too long in the dark loses the time: day 4 begins and the notebook says so")
+	_check(story._dread < 0.05 or story._phase == "day", "the dread is gone with the night")
+	# every night's figure can be placed, whatever the player is doing
+	for d in range(4, 10):
+		var n: Dictionary = Days.get_day(d)["night"]
+		story.stranger.vanish()
+		story._spawn_figure(n)
+		_check(story.stranger.state != Stranger.State.HIDDEN and story.stranger.visible, "night %d: the figure can be placed" % d)
+		story.stranger.vanish()
 	w.queue_free()
 	await process_frame
 	Engine.time_scale = 1.0
