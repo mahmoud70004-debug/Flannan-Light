@@ -25,6 +25,9 @@ var _debug_scene := false
 var _t := 0.0
 var _blink := 0.0
 var _next_blink := 25.0
+var _auto_h := 540                ## the picture height AUTO is using now
+var _auto_t := 0.0
+var _auto_slow := 0
 
 
 func _ready() -> void:
@@ -96,6 +99,8 @@ func _build_view() -> void:
 func _apply_settings() -> void:
 	var vr := get_viewport().get_visible_rect().size
 	var h := _opt("res", Settings.render_height)
+	if h == 0:
+		h = _auto_h
 	_view.size = Vector2i(maxi(int(round(h * vr.x / maxf(vr.y, 1.0))), 16), h)
 	var aa := _opt("msaa", Settings.msaa)
 	_view.msaa_3d = [Viewport.MSAA_DISABLED, Viewport.MSAA_2X, Viewport.MSAA_4X][aa]
@@ -223,6 +228,33 @@ func _on_interact() -> void:
 		t.call("interact")
 
 
+## AUTO picture height: if the last few seconds ran below ~28 fps, step down; if far above 50, step up.
+func _update_auto_res(delta: float) -> void:
+	if Settings.render_height != 0 or _overrides.has("res"):
+		return
+	_auto_t += delta
+	if _auto_t < 3.0:
+		return
+	_auto_t = 0.0
+	var fps := Engine.get_frames_per_second()
+	var steps := [360, 480, 540, 720]
+	var i := steps.find(_auto_h)
+	if fps < 28.0 and i > 0:
+		_auto_slow += 1
+		if _auto_slow >= 2:
+			_auto_h = steps[i - 1]
+			_auto_slow = 0
+			_apply_settings()
+	elif fps > 52.0 and i < steps.size() - 1:
+		_auto_slow -= 1
+		if _auto_slow <= -4:
+			_auto_h = steps[i + 1]
+			_auto_slow = 0
+			_apply_settings()
+	else:
+		_auto_slow = 0
+
+
 func _toggle_menu() -> void:
 	if _hud.menu_open:
 		_hud.close_menu()
@@ -246,7 +278,7 @@ func _open_menu() -> void:
 		{"text": "RESUME", "call": resume},
 		{"text": "Look: %s" % Film.grade_name(Settings.grade), "call": rebuild.call(Settings.cycle_grade)},
 		{"text": "Pixel filter: %s" % Film.fx_name(Settings.fx), "call": rebuild.call(Settings.cycle_fx)},
-		{"text": "Picture height: %dp" % Settings.render_height, "call": rebuild.call(Settings.cycle_render_height)},
+		{"text": "Picture height: %s" % (("AUTO (%dp)" % _auto_h) if Settings.render_height == 0 else "%dp" % Settings.render_height), "call": rebuild.call(Settings.cycle_render_height)},
 		{"text": "Shadows: %s" % ["off", "hall", "all"][Settings.shadows], "call": rebuild.call(Settings.cycle_shadows)},
 		{"text": "Anti-aliasing: %s" % ["off", "2x", "4x"][Settings.msaa], "call": rebuild.call(Settings.cycle_msaa)},
 		{"text": "Volume: %d%%" % int(round(Settings.volume * 100.0)), "call": rebuild.call(Settings.cycle_volume)},
@@ -277,6 +309,7 @@ func _process(delta: float) -> void:
 	if not _debug_scene:
 		_director.update(delta)
 	_ambience.update(delta, _story.fear)
+	_update_auto_res(delta)
 	_t += delta
 	var fear := _story.fear
 	_apartment.update_flicker(fear, _t)

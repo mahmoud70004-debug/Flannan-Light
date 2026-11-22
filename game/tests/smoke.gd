@@ -91,6 +91,7 @@ func _run() -> void:
 	# Spawn and look-dev spots must be free for a player-sized capsule
 	var spots: Dictionary = flat.debug_spots()
 	spots["spawn"] = [flat.spawn_point(), 0.0, 0.0]
+	spots["wake"] = [flat.wake_point(), flat.wake_yaw(), 0.0]
 	var cap := CapsuleShape3D.new()
 	cap.radius = 0.27
 	cap.height = 1.7
@@ -322,7 +323,7 @@ const KNOWN_NIGHT := ["footsteps_door", "knock_front", "whisper_bed", "stranger_
 func _check_story_content(flat) -> void:
 	var director = (load("res://scripts/director.gd") as GDScript).new()
 	var valid_ids: Array = flat.use_points.keys() + [Days.PHOTO_STEP, "bed1"]
-	var sounds := ["step_0", "step_3", "cough_0", "cough_1", "knock3", "knock1", "door_creak", "lamp_buzz", "breath", "whisper_0", "whisper_4", "laugh_0", "laugh_1", "tv_static", "phone_ring", "handset", "machine_new", "machine_end", "machine_beep", "shutter", "click", "drip", "heartbeat", "drone", "room_tone", "street", "fridge_hum", "flies_loop", "jack_greeting", "greeting"]
+	var sounds := ["step_0", "step_3", "cough_0", "cough_1", "knock3", "knock1", "door_creak", "lamp_buzz", "breath", "whisper_0", "whisper_4", "laugh_0", "laugh_1", "tv_static", "phone_ring", "handset", "machine_new", "machine_end", "machine_beep", "shutter", "click", "drip", "heartbeat", "drone", "room_tone", "street", "fridge_hum", "flies_loop", "jack_greeting", "greeting", "vm0"]
 	for n in sounds:
 		_check(Audio.stream(n) != null, "sound '%s' exists" % n)
 	for i in range(1, Days.COUNT + 1):

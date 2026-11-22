@@ -84,6 +84,7 @@ func _process(delta: float) -> void:
 func _give_hint() -> void:
 	var data := Days.get_day(GameState.day)
 	if data.get("final", false) and _final_stage:
+		hud.say("It's waiting for me in the living room.")
 		return
 	for t in data["tasks"]:
 		if GameState.is_done(t["id"]):
@@ -169,8 +170,8 @@ func start_day() -> void:
 	GameState.play_seconds = 0.0
 	hud.hide_tasks()
 	player.set_physics_process(false)
-	player.position = Vector3(-3.9, 0.05, -6.5)
-	player.rotation.y = PI
+	player.position = apartment.wake_point()
+	player.rotation.y = apartment.wake_yaw()
 	player.set_pitch(0.0)
 	player.eye_drop = 0.0
 	player.velocity = Vector3.ZERO
@@ -180,6 +181,9 @@ func start_day() -> void:
 	controls.show_photo = GameState.day >= 4
 	show_tasks(7.0)
 	_hint_timer = 0.0
+	if GameState.day == 4 and not GameState.flag("hint_photo"):
+		GameState.set_flag("hint_photo")
+		hud.say("My phone has a camera. The PHOTO button, up there.", 4.5)
 	if GameState.day == 1 and not GameState.flag("hint_shown"):
 		GameState.set_flag("hint_shown")
 		hud.say("Walk with the left thumb. Look with the right. USE to touch things.", 5.5)
@@ -287,7 +291,10 @@ func _do_step(t: Dictionary, id: String, last: bool) -> void:
 	if last:
 		if t.has("doc"):
 			var doc := Docs.get_doc(t["doc"])
-			await hud.read_doc(doc["title"], doc["body"])
+			var doc_title: String = doc["title"]
+			if t["doc"] == "photos":
+				doc_title = "Photos (%d)" % maxi(GameState.photos, 1)
+			await hud.read_doc(doc_title, doc["body"])
 		GameState.finish_task(t["id"])
 		hud.say_all(t.get("say", []))
 		boost_fear(0.04)

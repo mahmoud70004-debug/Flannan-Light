@@ -22,3 +22,9 @@ gets a merge when the user asks. Jack's voice: `am_onyx` (kokoro-onnx), more pau
 - Web export checked in Chromium/SwiftShader: title -> new game -> day card -> game loads, no console errors.
 - Next: visual polish pass (trash corner, epilogue, stranger look), more content (TV, calendar, mirror, peephole),
   tune pacing/difficulty, more documents, update GDD/plan docs, performance look at fx levels.
+
+## 2026-11-22 (session 1, later)
+- Blender pipeline (`tools/blender`): ~30 furniture/clutter models merged into room batches; pleated curtains, radiators, skyline outside the windows.
+- Tests: use-point reachability, model existence, pause menu, scripted-event firing, whole-game bot (546 checks, ~3 min).
+- Added: Jack's first voicemail on day 1 (vm0), the machine greeting in the epilogue, AUTO picture height, title flicker, reactions/hints/ambient bits, fear effects (blink, throb, lamp wavering), reduced-flash option.
+- Open: playtest on the phone (performance, pacing, scare tuning, voices), APK build, merging `dev` into `main` when asked.

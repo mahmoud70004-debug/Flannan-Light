@@ -4,11 +4,11 @@ extends Node
 signal changed
 
 const PATH := "user://settings.cfg"
-const RENDER_HEIGHTS := [360, 480, 540, 720, 1080]
-const VERSION := 6                 ## stored with the file; older looks are discarded
+const RENDER_HEIGHTS := [0, 360, 480, 540, 720, 1080]     ## 0 = AUTO: the game steps between 360 and 720 to hold about 30 fps
+const VERSION := 7                 ## stored with the file; older looks are discarded
 
 var look_sensitivity: float = 0.0045   ## radians per UI pixel dragged
-var render_height: int = 540           ## height of the 3D image; the screen is upscaled from it
+var render_height: int = 0             ## height of the 3D image (0 = AUTO); the screen is upscaled from it
 var brightness: float = 1.0
 var grade: int = 0                     ## index into Film.GRADES
 var fx: int = 4                        ## pixel/dither filter: 0 off, 1-3 fixed, 4 = AUTO (follows fear)
@@ -29,7 +29,7 @@ func _ready() -> void:
 		return
 	render_height = cfg.get_value("video", "render_height", render_height)
 	if not RENDER_HEIGHTS.has(render_height):
-		render_height = 540
+		render_height = 0
 	brightness = clampf(cfg.get_value("video", "brightness", brightness), 0.6, 1.8)
 	grade = clampi(int(cfg.get_value("video", "grade", grade)), 0, Film.GRADES.size() - 1)
 	fx = clampi(int(cfg.get_value("video", "fx", fx)), 0, Film.FX_NAMES.size() - 1)

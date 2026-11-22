@@ -31,7 +31,14 @@ func _ready() -> void:
 	box.add_theme_constant_override("separation", 8)
 	scroll.add_child(box)
 
-	box.add_child(_label(GAME_TITLE, 64, HORIZONTAL_ALIGNMENT_CENTER))
+	var title := _label(GAME_TITLE, 64, HORIZONTAL_ALIGNMENT_CENTER)
+	box.add_child(title)
+	var flicker := create_tween().set_loops()
+	flicker.tween_interval(3.5)
+	flicker.tween_property(title, "modulate:a", 0.25, 0.05)
+	flicker.tween_property(title, "modulate:a", 1.0, 0.07)
+	flicker.tween_property(title, "modulate:a", 0.5, 0.04)
+	flicker.tween_property(title, "modulate:a", 1.0, 0.2)
 	box.add_child(_label("Pottsfield Studio", 22, HORIZONTAL_ALIGNMENT_CENTER, 0.55))
 	box.add_child(_label("A psychological horror · headphones recommended", 22, HORIZONTAL_ALIGNMENT_CENTER, 0.7))
 
@@ -83,12 +90,12 @@ func _ready() -> void:
 		Settings.cycle_volume()
 		vol.text = "Volume: %d%%" % int(round(Settings.volume * 100.0)))
 	box.add_child(vol)
-	var res := _button("Picture height: %dp" % Settings.render_height)
+	var res := _button("Picture height: %s" % _res_text())
 	res.custom_minimum_size = Vector2(0, 56)
 	res.add_theme_font_size_override("font_size", 26)
 	res.pressed.connect(func() -> void:
 		Settings.cycle_render_height()
-		res.text = "Picture height: %dp" % Settings.render_height)
+		res.text = "Picture height: %s" % _res_text())
 	box.add_child(res)
 
 	var build := _label(BuildInfo.label(), 20, HORIZONTAL_ALIGNMENT_RIGHT, 0.5)
@@ -108,6 +115,10 @@ func _ready() -> void:
 	add_child(credits)
 
 	_refresh_grade()
+
+
+func _res_text() -> String:
+	return "AUTO" if Settings.render_height == 0 else "%dp" % Settings.render_height
 
 
 func _label(text: String, font_size: int, align: HorizontalAlignment, alpha := 1.0) -> Label:

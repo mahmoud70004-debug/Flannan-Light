@@ -872,6 +872,15 @@ func spawn_point() -> Vector3:
 	return Vector3(0.1, 0.05, -0.75)
 
 
+## Where Martin wakes up each morning: beside the bed, looking into the room.
+func wake_point() -> Vector3:
+	return Vector3(-4.55, 0.05, -6.25)
+
+
+func wake_yaw() -> float:
+	return 0.3
+
+
 func spawn_yaw() -> float:
 	return 0.0                                          # facing north, toward the hall door
 
