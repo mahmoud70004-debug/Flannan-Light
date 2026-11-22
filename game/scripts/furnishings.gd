@@ -223,16 +223,18 @@ static func _kitchen(a: Apartment) -> void:
 	_p(a, c, Vector3(2.5, 0.95, -0.38), Vector3(0.36, 0.05, 0.34), "cloth_red", 0.2, false)           # pizza box
 	_p(a, c, Vector3(2.5, 0.985, -0.38), Vector3(0.3, 0.02, 0.28), "food", 0.2, false)
 	_bottles(a, c, Vector3(3.9, 0.92, -0.4), 4, Vector2(0.2, 0.1), 21, 0.7)
-	# The trash corner (north-east): overflowing bin, bags, empty beer bottles
+	# The trash corner (north-east): an overflowing bin, torn bags and spilled rubbish, empty beer bottles
 	a.cyl(Vector3(4.62, 0.32, -1.85), 0.2, 0.64, "black", layer, 0.22, 12)
-	_p(a, c, Vector3(4.62, 0.7, -1.85), Vector3(0.34, 0.12, 0.3), "sheet", 0.3, false)
-	for i in 4:
-		a.cyl(Vector3(4.3 + float(i) * 0.12, 0.2, -2.0 + float(i % 2) * 0.12), 0.16 - float(i % 2) * 0.03, 0.38, "black", layer, 0.1, 8)
-	_p(a, c, Vector3(4.35, 0.2, -1.9), Vector3(0.4, 0.4, 0.34), "black", 0.5, false)
-	_p(a, c, Vector3(4.15, 0.16, -1.65), Vector3(0.34, 0.32, 0.3), "sheet", -0.4, false)
-	_p(a, c, Vector3(4.8, 0.14, -1.3), Vector3(0.3, 0.28, 0.4), "black", 0.2, false)
-	_bottles(a, c, Vector3(4.55, 0.0, -1.55), 14, Vector2(0.4, 0.55), 22, 0.45)
-	_rotten_plate(a, c, Vector3(4.4, 0.0, -1.15), 2)
+	a.ball(Vector3(4.62, 0.74, -1.85), 0.26, "bag", layer, 0.7, 0.15, 3)                              # overflow on the bin
+	a.ball(Vector3(4.2, 0.2, -2.0), 0.24, "bag", layer, 0.85, 0.12, 4)
+	a.ball(Vector3(4.42, 0.17, -1.5), 0.2, "bag", layer, 0.8, 0.14, 5)
+	a.ball(Vector3(4.12, 0.15, -1.62), 0.17, "bag", layer, 0.8, 0.18, 6)
+	a.ball(Vector3(4.78, 0.16, -1.2), 0.19, "bag", layer, 0.85, 0.12, 7)
+	for i in 9:                                                                                       # spilled rubbish
+		var mats := ["paper", "food", "cloth_red", "rot", "mold", "paper", "cloth_blue", "food", "paper"]
+		_p(a, c, Vector3(4.0 + float(i % 4) * 0.2, 0.012, -1.35 - float(i / 4) * 0.22), Vector3(0.11 + 0.03 * float(i % 3), 0.02, 0.08 + 0.03 * float(i % 2)), mats[i], float(i) * 0.9, false)
+	_bottles(a, c, Vector3(4.5, 0.0, -1.55), 18, Vector2(0.45, 0.6), 22, 0.45)
+	_rotten_plate(a, c, Vector3(4.35, 0.0, -1.0), 2)
 	_litter(a, c, Vector3(3.6, 0, -1.4), 4, 0.5, 6)
 	a.stain(c, Vector3(3.0, 2.49, -1.2), Vector3(0, -1, 0), 1.6)
 	a.stain(c, Vector3(3.0, 1.5, -0.11), Vector3(0, 0, -1), 1.0, 1.4)

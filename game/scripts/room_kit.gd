@@ -111,6 +111,34 @@ func quad(center: Vector3, normal: Vector3, up: Vector3, w: float, h: float, mat
 		st.add_vertex(pts[i])
 
 
+## A lumpy ball (a bag of rubbish): a squashed sphere, `squash` flattens it, `lump` wobbles the surface.
+func ball(center: Vector3, radius: float, mat_key: String, layer: int, squash := 0.8, lump := 0.12, seed_i := 1, segs := 10, rings := 6) -> void:
+	var st := _surface(Mats.batch_key(mat_key), layer)
+	var col := Mats.color_of(mat_key)
+	var rng := RandomNumberGenerator.new()
+	rng.seed = seed_i
+	var phase := [rng.randf() * 6.28, rng.randf() * 6.28, rng.randf() * 6.28]
+	var pts := []
+	for r in rings + 1:
+		var row := []
+		var phi := PI * float(r) / float(rings)
+		for i in segs:
+			var th := TAU * float(i) / float(segs)
+			var wob := 1.0 + lump * (sin(th * 2.0 + phase[0]) * 0.5 + sin(phi * 3.0 + phase[1]) * 0.5)
+			var d := Vector3(sin(phi) * cos(th), cos(phi) * squash, sin(phi) * sin(th))
+			row.append(center + d * radius * wob)
+		pts.append(row)
+	for r in rings:
+		for i in segs:
+			var a: Vector3 = pts[r][i]
+			var b: Vector3 = pts[r][(i + 1) % segs]
+			var c: Vector3 = pts[r + 1][(i + 1) % segs]
+			var d2: Vector3 = pts[r + 1][i]
+			var n := ((a + b + c + d2) * 0.25 - center).normalized()
+			_tri(st, a, b, c, n, col)
+			_tri(st, a, c, d2, n, col)
+
+
 ## A cylinder or cone (top_radius < 0 keeps it straight), standing on its centre point.
 func cyl(center: Vector3, radius: float, height: float, mat_key: String, layer: int, top_radius := -1.0, sides := 14) -> void:
 	var st := _surface(Mats.batch_key(mat_key), layer)

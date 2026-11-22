@@ -104,6 +104,7 @@ var movables := {}                     ## id -> Node3D that the story can show, 
 var stranger_spots: Array = []         ## floor positions where the stranger may stand
 var _tv: MeshInstance3D
 var _tv_mat: StandardMaterial3D
+var _tv_light: OmniLight3D
 var phone: Interactable
 var _panes: Array[MeshInstance3D] = []
 var _lines := {}                       ## wall line key -> side records (wall generation)
@@ -765,6 +766,14 @@ func setup_tv(pos: Vector3, w: float, h: float) -> void:
 	_tv.visible = false
 	add_child(_tv)
 	cull_items.append(_tv)
+	_tv_light = OmniLight3D.new()                      # the cold light of a TV nobody is watching
+	_tv_light.position = pos + Vector3(0, 0.1, 0.5)
+	_tv_light.light_color = Color(0.7, 0.8, 1.0)
+	_tv_light.light_energy = 0.0
+	_tv_light.omni_range = 5.5
+	_tv_light.omni_attenuation = 1.2
+	_tv_light.light_cull_mask = L_LIV | L_JAMB
+	add_child(_tv_light)
 
 
 func tv_position() -> Vector3:
@@ -774,12 +783,16 @@ func tv_position() -> Vector3:
 func set_tv(on: bool) -> void:
 	if _tv:
 		_tv.visible = on
+	if _tv_light:
+		_tv_light.light_energy = 0.9 if on else 0.0
 
 
 func set_tv_level(v: float) -> void:
 	if _tv_mat:
 		_tv_mat.albedo_color = Color(v, v, v * 1.05)
 		_tv_mat.uv1_offset = Vector3(randf(), randf(), 0.0)
+	if _tv_light and _tv.visible:
+		_tv_light.light_energy = 0.4 + v * 0.8
 
 
 ## Forty-one days later: the lamps are off but one, the windows are bright, and he is on the sofa.
@@ -819,6 +832,7 @@ func debug_spots() -> Dictionary:
 		"door": _spot(Vector3(0.1, 0.05, -0.75), Vector3(0.1, 1.3, -5.0)),
 		"living": _spot(Vector3(0.1, 0.05, -2.9), Vector3(2.5, 0.7, -7.0)),
 		"dining": _spot(Vector3(1.8, 0.05, -4.0), Vector3(3.9, 0.8, -5.6)),
+		"sofa": _spot(Vector3(0.0, 0.05, -3.3), Vector3(1.0, 0.9, -6.4)),
 		"tv": _spot(Vector3(3.6, 0.05, -3.7), Vector3(1.0, 0.6, -9.0)),
 		"kitchen": _spot(Vector3(2.2, 0.05, -1.0), Vector3(4.6, 0.5, -1.9)),
 		"trash": _spot(Vector3(3.5, 0.05, -1.0), Vector3(4.7, 0.3, -1.9)),
