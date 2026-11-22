@@ -202,6 +202,7 @@ func _apply_environment(data: Dictionary) -> void:
 	var night := clampf(float(GameState.day - 1) / 8.0, 0.0, 1.0)                 # the windows darken as the days go by
 	var b := lerpf(2.3, 0.55, night)
 	apartment.set_window_light(Color(b, b, b * 1.06))
+	apartment.set_skyline(GameState.day >= 6)
 
 
 # --- using things -------------------------------------------------------------------------------------------

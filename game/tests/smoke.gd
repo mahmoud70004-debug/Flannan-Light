@@ -117,6 +117,18 @@ func _run() -> void:
 		_check(space.intersect_shape(qs, 1).is_empty() and flat.cell_at(spot) != "", "stranger spot (%.1f, %.1f) is free in %s" % [spot.x, spot.z, flat.cell_at(spot)])
 	_check(flat.movables.has("coat") and flat.movables.has("body"), "the coat and the epilogue body exist as movables")
 
+	# Every model the furnishings ask for exists (a missing one silently falls back to boxes)
+	var src := FileAccess.get_file_as_string("res://scripts/furnishings.gd") + FileAccess.get_file_as_string("res://scripts/apartment.gd")
+	var rx := RegEx.new()
+	rx.compile("place_model\\(\"([a-z0-9_]+)\"")
+	var seen := {}
+	for m in rx.search_all(src):
+		seen[m.get_string(1)] = true
+	for k in Furnishings.TABLES.values():
+		seen[k] = true
+	for m_name in seen:
+		_check(ResourceLoader.exists("res://assets/models/props/%s.glb" % m_name), "model '%s' exists" % m_name)
+
 	# The story as data: every task step is something in the flat, every sound and message exists
 	_check_story_content(flat)
 
@@ -166,6 +178,7 @@ func _run() -> void:
 
 	await _walk_openings(flat)
 	await _reachability(flat)
+	await _use_points_work(flat)
 	flat.queue_free()
 	await process_frame
 
@@ -456,3 +469,49 @@ func _exercise_menu(w) -> void:
 		st.msaa = 0
 		st.render_height = 540
 		st.save()
+
+
+## Every prop the game uses can really be used: from somewhere the player can stand, looking at it, the
+## interaction ray finds it (and not something else in front of it).
+func _use_points_work(flat) -> void:
+	for d in flat.doors:
+		flat.doors[d].set_open(true, false)
+	var player = (load("res://scripts/player.gd") as GDScript).new()
+	root.add_child(player)
+	await physics_frame
+	var space := root.get_world_3d().direct_space_state
+	var cap := CapsuleShape3D.new()
+	cap.radius = 0.28
+	cap.height = 1.7
+	var q := PhysicsShapeQueryParameters3D.new()
+	q.shape = cap
+	q.collision_mask = 1
+	for id in flat.use_points:
+		var it = flat.use_points[id]
+		var center: Vector3 = it.global_position
+		var found := false
+		for r in [0.9, 1.2, 1.5]:
+			for k in 16:
+				var ang := TAU * float(k) / 16.0
+				var pos := Vector3(center.x + cos(ang) * r, 0.05, center.z + sin(ang) * r)
+				if flat.cell_at(pos) == "":
+					continue
+				q.transform = Transform3D(Basis(), pos + Vector3(0, 0.9, 0))
+				if not space.intersect_shape(q, 1).is_empty():
+					continue
+				player.position = pos
+				var d := center - Vector3(pos.x, 1.6, pos.z)
+				player.rotation.y = atan2(-d.x, -d.z)
+				player.set_pitch(atan2(d.y, Vector2(d.x, d.z).length()))
+				await physics_frame
+				await physics_frame
+				var t = player.target()
+				if t != null and t == it:
+					found = true
+					break
+			if found:
+				break
+		_check(found, "'%s' can be used from a spot the player can stand on" % id)
+	player.queue_free()
+	for d in flat.doors:
+		flat.doors[d].set_open(false, false)

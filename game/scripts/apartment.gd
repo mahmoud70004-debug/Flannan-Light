@@ -530,24 +530,71 @@ func _make_window(o: Dictionary, axis: String, fixed: float, t: float, neg: Stri
 
 
 var _sky: StandardMaterial3D
+var _skyline := {}
+
+
+## The view from every window: a dusk gradient and the dark blocks of the building opposite, some windows lit.
+## From day 6 one lit window across the street has someone standing in it.
+func _sky_texture(with_figure: bool) -> ImageTexture:
+	if _skyline.has(with_figure):
+		return _skyline[with_figure]
+	var w := 128
+	var h := 64
+	var img := Image.create(w, h, false, Image.FORMAT_RGB8)
+	for y in h:
+		var t := float(y) / float(h - 1)
+		var c := Color(0.20, 0.23, 0.28).lerp(Color(0.34, 0.37, 0.42), t)
+		for x in w:
+			img.set_pixel(x, y, c)
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 12
+	var x := 0
+	while x < w:
+		var bw := rng.randi_range(10, 22)
+		var bh := rng.randi_range(18, 46)
+		var shade := rng.randf_range(0.05, 0.09)
+		for yy in range(h - bh, h):
+			for xx in range(x, mini(x + bw - 1, w)):
+				img.set_pixel(xx, yy, Color(shade, shade * 1.1, shade * 1.4))
+		for wy in range(h - bh + 4, h - 3, 6):
+			for wx in range(x + 3, x + bw - 4, 5):
+				var lit := rng.randf() < 0.22
+				var wc := Color(0.82, 0.66, 0.35) if lit else Color(0.09, 0.1, 0.13)
+				for dy in 3:
+					for dx in 3:
+						if wx + dx < w and wy + dy < h:
+							img.set_pixel(wx + dx, wy + dy, wc)
+		x += bw
+	if with_figure:                                     # a lit window, and a dark shape standing in it
+		var fx := 78
+		var fy := 30
+		for dy in 9:
+			for dx in 7:
+				img.set_pixel(fx + dx, fy + dy, Color(0.9, 0.78, 0.45))
+		for dy in range(2, 9):
+			for dx in range(2, 5):
+				img.set_pixel(fx + dx, fy + dy, Color(0.03, 0.03, 0.04))
+		for dy in range(0, 3):
+			for dx in range(2, 5):
+				img.set_pixel(fx + dx, fy + dy + 1, Color(0.03, 0.03, 0.04))
+	var tex := ImageTexture.create_from_image(img)
+	_skyline[with_figure] = tex
+	return tex
+
 
 func _sky_mat() -> StandardMaterial3D:
 	if _sky:
 		return _sky
-	var grad := Gradient.new()
-	grad.set_color(0, Color(0.20, 0.23, 0.28))
-	grad.set_color(1, Color(0.33, 0.36, 0.40))
-	var tex := GradientTexture2D.new()
-	tex.gradient = grad
-	tex.fill = GradientTexture2D.FILL_LINEAR
-	tex.fill_from = Vector2(0, 0)
-	tex.fill_to = Vector2(0, 1)
-	tex.width = 8
-	tex.height = 64
 	_sky = StandardMaterial3D.new()
 	_sky.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	_sky.albedo_texture = tex
+	_sky.albedo_texture = _sky_texture(false)
+	_sky.texture_filter = BaseMaterial3D.TEXTURE_FILTER_NEAREST
 	return _sky
+
+
+func set_skyline(figure: bool) -> void:
+	if _sky:
+		_sky.albedo_texture = _sky_texture(figure)
 
 
 func set_window_light(tint: Color) -> void:

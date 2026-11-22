@@ -267,7 +267,7 @@ static func _living(a: Apartment) -> void:
 	var layer := a.layer_of(c)
 	_p(a, c, Vector3(1.0, 0.225, -9.25), Vector3(1.5, 0.45, 0.42), "dark_wood")                      # TV stand
 	a.place_model("tv", c, Vector3(1.0, 0.45, -9.27), PI)                                            # TV on its stand
-	a.use_point("tv", "Turn on the TV", Vector3(1.4, 1.0, 0.6), Vector3(1.0, 0.8, -9.2))
+	a.use_point("tv", "Turn on the TV", Vector3(1.1, 0.8, 0.5), Vector3(1.25, 0.85, -9.2))
 	a.setup_tv(Vector3(1.0, 0.83, -9.236), 1.07, 0.6)
 	# He is on the sofa, in the epilogue only: slumped, facing the TV, in the grey hoodie and jeans
 	a.make_movable("body", c, Vector3(1.0, 0.0, -6.4), [
