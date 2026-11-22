@@ -39,3 +39,4 @@ gets a merge when the user asks. Jack's voice: `am_onyx` (kokoro-onnx), more pau
 - Windows: always a wet night, rain and grime, curtains drawn with a gap (the figure from day 6 shows in the gap), blinds on the bare windows; day 1 starts at 7:14 p.m.
 - Pacing: one task at a time with a thought and an objective, quiet stretches, events tied to progress (see `docs/features/daily-routine/design.md`).
 - Defaults: pixel filter MID, 360p, shadows on all.
+- Light switches you can find in the dark: an amber pilot light on every plate, a soft halo while the room is dark, a bigger touch area, the prompt "Light switch", and the click sound on every use.

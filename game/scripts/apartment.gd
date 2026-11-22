@@ -93,6 +93,7 @@ const SWITCHES := [
 	["bed2", -1.5, -5.67, Vector3(0, 0, -1)],
 ]
 
+var switch_halo := {}                  ## room -> the glow around its light switch (shown while the room is dark)
 var switch_at := {}                    ## room -> where its light switch is
 var hang_errors: Array = []            ## wall items that would have sat on a door, arch or window (the test wants none)
 var doors := {}                        ## name -> Door
@@ -696,14 +697,71 @@ func _lamps_and_switches() -> void:
 		var size := Vector3(0.02, 0.12, 0.08) if facing.x != 0.0 else Vector3(0.08, 0.12, 0.02)
 		hang_ok("light switch in %s" % s[0], pos, "x" if facing.x != 0.0 else "z", 0.06, 1.19, 1.31)
 		box(pos, size, ["trim", layer_of(s[0])], {}, false)
-		var sw := _interactable("Light", Vector3(0.35, 0.35, 0.35), pos + facing * 0.1)
+		var sw := _interactable("Light switch", Vector3(0.5, 0.6, 0.5), pos + facing * 0.15)
 		var room: String = s[0]
+		_switch_glow(room, pos, facing)
 		switch_at[room] = pos
 		sw.interacted.connect(func() -> void:
 			var sfx := get_node_or_null("/root/Sfx")                # (looked up at run time: tests compile this class without autoloads)
 			if sfx:
 				sfx.call("play_at", "switch", pos, -2.0, 8.0, 2.0)
 			toggle_room(room))
+
+
+## A switch you can find in the dark: a small amber pilot light on the plate (always on) and a soft halo around it
+## that shows while the room is dark. Both are unshaded, so no room lighting changes them.
+func _switch_glow(room: String, pos: Vector3, facing: Vector3) -> void:
+	var layer := layer_of(room)
+	var yaw := atan2(facing.x, facing.z)
+	var pilot := MeshInstance3D.new()
+	var q := QuadMesh.new()
+	q.size = Vector2(0.028, 0.04)
+	pilot.mesh = q
+	pilot.material_override = _glow_mat(false)
+	pilot.layers = layer
+	pilot.position = pos + facing * 0.013
+	pilot.rotation.y = yaw
+	add_child(pilot)
+	cull_items.append(pilot)
+	var halo := MeshInstance3D.new()
+	var hq := QuadMesh.new()
+	hq.size = Vector2(0.42, 0.42)
+	halo.mesh = hq
+	halo.material_override = _glow_mat(true)
+	halo.layers = layer
+	halo.position = pos + facing * 0.016
+	halo.rotation.y = yaw
+	halo.visible = not room_lit(room)
+	add_child(halo)                                       # not in cull_items: its visibility belongs to the room's lamps
+	switch_halo[room] = halo
+
+
+var _glow_mats := {}
+
+
+func _glow_mat(halo: bool) -> StandardMaterial3D:
+	if _glow_mats.has(halo):
+		return _glow_mats[halo]
+	var m := StandardMaterial3D.new()
+	m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	m.albedo_color = Color(1.0, 0.72, 0.32)
+	if halo:
+		var g := Gradient.new()
+		g.colors = PackedColorArray([Color(1, 1, 1, 0.5), Color(1, 1, 1, 0.0)])
+		g.offsets = PackedFloat32Array([0.0, 1.0])
+		var t := GradientTexture2D.new()
+		t.gradient = g
+		t.fill = GradientTexture2D.FILL_RADIAL
+		t.fill_from = Vector2(0.5, 0.5)
+		t.fill_to = Vector2(1.0, 0.5)
+		t.width = 64
+		t.height = 64
+		m.albedo_texture = t
+		m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		m.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
+		m.no_depth_test = false
+	_glow_mats[halo] = m
+	return m
 
 
 ## A ceiling lamp: the light, a fitting, and a glowing bulb that go on and off together.
@@ -764,6 +822,8 @@ func set_room_lit(room: String, on: bool) -> void:
 		(l["bulb"] as MeshInstance3D).visible = on
 		if l.has("shade"):
 			(l["shade"] as MeshInstance3D).visible = on
+	if switch_halo.has(room):
+		(switch_halo[room] as MeshInstance3D).visible = not on
 
 
 func toggle_room(room: String) -> void:
@@ -996,6 +1056,7 @@ func debug_spots() -> Dictionary:
 		"bed1": _spot(Vector3(-4.5, 0.05, -6.2), Vector3(-4.85, 0.6, -8.4)),
 		"bed2": _spot(Vector3(-2.0, 0.05, -6.3), Vector3(-1.6, 0.6, -8.4)),
 		"bath": _spot(Vector3(-5.1, 0.05, -3.7), Vector3(-5.4, 0.8, -2.0)),
+		"switch": _spot(Vector3(-1.7, 0.05, -6.9), Vector3(-1.5, 1.25, -5.67)),
 		"storage": _spot(Vector3(-2.4, 0.05, -3.6), Vector3(-2.4, 0.6, -1.9)),
 	}
 
