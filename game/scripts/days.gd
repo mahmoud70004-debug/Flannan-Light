@@ -182,6 +182,9 @@ const EXAMINE := {
 	"pills": [[1, ["A bathroom cabinet. Razor, aspirin, nothing else."]], [7, ["The pills are still in the bag."]]],
 	"shower": [[1, ["Later."]]],
 	"phone": [[1, ["The machine light isn't blinking."]], [4, ["The machine light is blinking."]]],
+	"clock": [[1, ["The clock on the wall is right. For now."]], [5, ["It says 3:07. It says 3:07 every time I look."]], [9, ["The second hand hasn't moved in days."]]],
+	"calendar": [[1, ["The calendar. Friday is circled in red."]], [5, ["More days are crossed off than have passed."]], [8, ["Every square is crossed off. Even the ones that haven't happened yet."]]],
+	"mirror_entry": [[1, ["A tired man looks back at me."]], [6, ["My reflection is a half-second behind me."]], [9, ["There's someone standing behind me in the glass. I turn. Nobody."]]],
 }
 
 
@@ -195,3 +198,71 @@ static func examine(id: String, day: int) -> Array:
 
 ## What he says when the bed is not ready for him yet.
 const NOT_YET := ["I can't sleep yet. There's still something I have to do.", "Not yet.", "Something's left undone."]
+
+
+## Martin thinking aloud when the player has been idle for a while: what the next step is and where.
+const HINT := {
+	"mail": "There's a pile of mail by the front door I haven't touched.",
+	"fridge": "I should find something to eat. The kitchen.",
+	"sofa": "I'll eat on the sofa, like always.",
+	"laptop": "The laptop is on the desk in the living room.",
+	"shower": "A shower. The bathroom is down the hall.",
+	"trash": "The kitchen bin is overflowing.",
+	"front_door": "The front door.",
+	"phone": "The phone, at the far end of the hall.",
+	"wardrobe": "My wardrobe, in the bedroom.",
+	"jack_desk": "Jack's old room, next to mine.",
+	"dad_boxes": "Dad's boxes in the storage room.",
+	"pills": "The medicine cabinet in the bathroom.",
+	"window_living": "The windows in the living room.",
+	"photo_parents": "The photo of Mom and Dad on the TV stand.",
+	"photo": "I could photograph the hall with my phone.",
+}
+
+## What is on the TV each day (shown as captions).
+const TV := [
+	"...rain expected through Thursday, with temperatures falling overnight.",
+	"...a man was found by his neighbours after, in the words of one, \"nobody had seen him for weeks.\"",
+	"...police are asking anyone with information to come forward. Anyone at all.",
+	"...for the third night in a row, residents report knocking from empty flats.",
+	"...do not open your door to strangers. We repeat, do not open your door.",
+	"...the missing man was last seen at home. He had no friends. No one came looking.",
+	"...Martin. Martin. Are you there, Martin?",
+	"...[static]  ...is behind you...  [static]",
+	"...we are sorry. There is no one left to tell.",
+	"...[static]",
+]
+
+
+static func peephole(day: int) -> Array:
+	if day < 4:
+		return ["I look through the peephole.", "Nobody. Just the hallway light, humming."]
+	if day < 8:
+		return ["I look through the peephole.", "Nobody. But the hall light is flickering.", "Somebody was just there."]
+	return ["I look through the peephole.", "A tall shape stands in the corridor, very still.", "I blink. It's gone."]
+
+
+## Martin reacting out loud when something happens: [from day, [lines]] per event; the latest set that applies is used.
+const REACT := {
+	"cough": [[1, ["Hello?", "...Did someone just cough?"]], [6, ["Again.", "I know you're there."]]],
+	"footsteps": [[1, ["The neighbours."]], [4, ["Those aren't the neighbours' steps."]], [8, ["Walk. Walk all you like."]]],
+	"knock": [[3, ["Hello?", "Who is it?"]], [6, ["I'm not opening it."]]],
+	"knock_door": [[3, ["Hello?"]], [6, ["Inside the flat. It knocks from inside."]]],
+	"door_creak": [[2, ["The draught."]], [6, ["It wants me to look."]]],
+	"door_open": [[2, ["The draught."]], [6, ["It wants me to look."]]],
+	"lights_flicker": [[4, ["The wiring. It's only the wiring."]], [7, ["Stop it."]]],
+	"lights_out": [[5, ["Not again."]], [8, ["I'm not afraid of the dark. I'm afraid of what's in it."]]],
+	"whisper": [[5, ["Who said that?"]], [8, ["I hear you."]]],
+	"laugh": [[5, ["What's so funny?"]], [8, ["Laugh. Go on."]]],
+	"breath": [[7, ["I can hear it breathe."]]],
+	"tv_static": [[8, ["It's talking to me."]]],
+	"first_seen": [[4, ["Someone's there. Someone's there."]], [6, ["Don't move. Don't blink."]], [8, ["It's wearing my coat."]], [9, ["Why does it look so familiar?"]]],
+}
+
+
+static func react(event_name: String, day: int) -> String:
+	var best: Array = []
+	for entry in REACT.get(event_name, []):
+		if day >= entry[0]:
+			best = entry[1]
+	return "" if best.is_empty() else str(best[randi() % best.size()])

@@ -38,6 +38,8 @@ var _ring_player: AudioStreamPlayer3D
 var _ring_time := 0.0
 var _final_stage := false
 var _near_final := 0.0
+var _hint_timer := 0.0
+var last_knock := -999.0
 var _ended := false
 
 
@@ -60,6 +62,11 @@ func _process(delta: float) -> void:
 	fear = clampf(lerpf(d["fear"], next["fear"], prog) + 0.04 * sin(_clock * 0.6) + _spike, 0.0, 1.0)
 	if fear_override >= 0.0:
 		fear = fear_override
+	if is_free():
+		_hint_timer += delta
+		if _hint_timer > 85.0:
+			_hint_timer = 0.0
+			_give_hint()
 	if ringing:
 		_ring_time += delta
 		if _ring_time > 34.0:
@@ -71,6 +78,22 @@ func _process(delta: float) -> void:
 				_ending()
 		else:
 			_near_final = 0.0
+
+
+## After a long time with no progress Martin thinks aloud about what is left to do.
+func _give_hint() -> void:
+	var data := Days.get_day(GameState.day)
+	if data.get("final", false) and _final_stage:
+		return
+	for t in data["tasks"]:
+		if GameState.is_done(t["id"]):
+			continue
+		var idx: int = GameState.step_index.get(t["id"], 0)
+		var id: String = t["steps"][mini(idx, t["steps"].size() - 1)]
+		hud.say(Days.HINT.get(id, "I should do something about " + str(t["text"]).to_lower() + "."))
+		return
+	if not data.get("final", false):
+		hud.say("I should get some sleep.")
 
 
 # --- starting a day ---------------------------------------------------------------------------------------
@@ -149,17 +172,19 @@ func start_day() -> void:
 	player.position = Vector3(-3.9, 0.05, -6.5)
 	player.rotation.y = PI
 	player.set_pitch(0.0)
-	player.head.position.y = Player.EYE_HEIGHT
+	player.eye_drop = 0.0
 	player.velocity = Vector3.ZERO
 	await hud.card([data["title"] + "  ·  " + data["sub"]] + data["intro"])
 	player.set_physics_process(true)
 	await hud.fade(0.0, 1.6)
 	controls.show_photo = GameState.day >= 4
 	show_tasks(7.0)
+	_hint_timer = 0.0
 	if GameState.day == 1 and not GameState.flag("hint_shown"):
 		GameState.set_flag("hint_shown")
 		hud.say("Walk with the left thumb. Look with the right. USE to touch things.", 5.5)
 	busy = false
+	_check_final()
 
 
 func _apply_environment(data: Dictionary) -> void:
@@ -173,6 +198,10 @@ func _apply_environment(data: Dictionary) -> void:
 	for room in ["entry", "kitchen", "living", "hall", "bed1", "living_floor"]:
 		apartment.set_room_lit(room, true)
 	apartment.set_tv(false)
+	ambience.set_day(GameState.day)
+	var night := clampf(float(GameState.day - 1) / 8.0, 0.0, 1.0)                 # the windows darken as the days go by
+	var b := lerpf(2.3, 0.55, night)
+	apartment.set_window_light(Color(b, b, b * 1.06))
 
 
 # --- using things -------------------------------------------------------------------------------------------
@@ -188,13 +217,41 @@ func on_used(id: String) -> void:
 		_use_phone(data)
 		return
 	if _advance_task(id, data):
+		_hint_timer = 0.0
 		return
 	_examine(id)
 
 
+## Switching on the TV: the news, getting stranger as the days go on.
+func _use_tv() -> void:
+	busy = true
+	apartment.set_tv(true)
+	apartment.set_tv_level(0.38)
+	var line: String = Days.TV[clampi(GameState.day, 1, Days.COUNT) - 1]
+	hud.caption("NEWS:  " + line, 5.0)
+	await get_tree().create_timer(5.5).timeout
+	apartment.set_tv(false)
+	busy = false
+
+
 func _examine(id: String) -> void:
-	if id == "photo_parents" and not GameState.flag("doc_photo_parents"):
-		pass
+	_hint_timer = 0.0
+	if id == "tv":
+		_use_tv()
+		return
+	if id == "laptop" and GameState.day in [5, 6, 8] and not GameState.flag("notes_%d" % GameState.day):
+		GameState.set_flag("notes_%d" % GameState.day)
+		busy = true
+		var nd := Docs.get_doc("notes_%d" % GameState.day)
+		await hud.read_doc(nd["title"], nd["body"])
+		busy = false
+		boost_fear(0.1)
+		return
+	if id == "front_door" and _clock - last_knock < 45.0:
+		hud.say_all(Days.peephole(GameState.day))
+		if GameState.day >= 6:
+			boost_fear(0.12)
+		return
 	var lines := Days.examine(id, GameState.day)
 	if not lines.is_empty():
 		hud.say_all(lines)
@@ -390,6 +447,9 @@ func _try_sleep(data: Dictionary) -> void:
 			hud.say(Days.NOT_YET[randi() % Days.NOT_YET.size()])
 			show_tasks(5.0)
 			return
+	if not director.all_scripted_fired() and director.enabled:
+		hud.say("I'm not tired yet. Something is about to happen.")
+		return
 	_night(data)
 
 
@@ -440,7 +500,7 @@ func _wake_scene(player_pos: Vector3, yaw: float, stranger_pos: Vector3, eye_dro
 	player.position = player_pos
 	player.rotation.y = yaw
 	player.set_pitch(0.0)
-	player.head.position.y = Player.EYE_HEIGHT - eye_drop
+	player.eye_drop = eye_drop
 	var lit: Array = []
 	for c in apartment.lamps:
 		if apartment.room_lit(c):
@@ -461,7 +521,7 @@ func _wake_scene(player_pos: Vector3, yaw: float, stranger_pos: Vector3, eye_dro
 	stranger.set_process(true)
 	await get_tree().create_timer(1.6).timeout
 	await hud.fade(1.0, 1.4)
-	player.head.position.y = Player.EYE_HEIGHT
+	player.eye_drop = 0.0
 	for c in lit:
 		apartment.set_room_lit(c, true)
 
@@ -568,6 +628,12 @@ func _epilogue() -> void:
 			rp.queue_free()
 		hud.caption("— " + str(m[1]) + " —", 2.5)
 		await get_tree().create_timer(2.0).timeout
+		# The machine answers with Martin's own cheerful voice from long ago
+		Sfx.play_at("greeting", pos, 0.0, 40.0, 6.0)
+		hud.caption("MARTIN:  Hey, you've reached Martin. I can't get to the phone right now. Leave a message, and I'll call you back.", 5.6)
+		await get_tree().create_timer(Audio.length("greeting") + 0.3).timeout
+		Sfx.play_at("machine_beep", pos, -4.0, 40.0, 6.0)
+		await get_tree().create_timer(0.8).timeout
 		var info := _vm_data(m[0])
 		Sfx.play_at(m[0], pos, 0.0, 40.0, 6.0)
 		var t0 := 0.0

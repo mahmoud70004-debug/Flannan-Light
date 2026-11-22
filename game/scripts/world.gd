@@ -22,6 +22,9 @@ var _story: Story
 var _ambience: Ambience
 var _overrides := {}
 var _debug_scene := false
+var _t := 0.0
+var _blink := 0.0
+var _next_blink := 25.0
 
 
 func _ready() -> void:
@@ -67,6 +70,7 @@ func _opt(key: String, stored: int) -> int:
 
 func _build_view() -> void:
 	_view = SubViewport.new()
+	_view.audio_listener_enable_3d = true                  # positional sounds are heard from the player's camera
 	_view.screen_space_aa = Viewport.SCREEN_SPACE_AA_DISABLED
 	_view.render_target_update_mode = SubViewport.UPDATE_ALWAYS
 	add_child(_view)
@@ -205,6 +209,8 @@ func _build_ui() -> void:
 	_apartment.used.connect(_story.on_used)
 	_apartment.said.connect(_hud.say)
 	_stranger.vanished.connect(_director.on_stranger_vanished)
+	_stranger.first_seen.connect(_director.on_first_seen)
+	_stranger.staring.connect(_director.on_staring)
 	_story.finished.connect(_to_title)
 	_hud.doc_closed.connect(func() -> void: pass)
 
@@ -244,6 +250,7 @@ func _open_menu() -> void:
 		{"text": "Shadows: %s" % ["off", "hall", "all"][Settings.shadows], "call": rebuild.call(Settings.cycle_shadows)},
 		{"text": "Anti-aliasing: %s" % ["off", "2x", "4x"][Settings.msaa], "call": rebuild.call(Settings.cycle_msaa)},
 		{"text": "Volume: %d%%" % int(round(Settings.volume * 100.0)), "call": rebuild.call(Settings.cycle_volume)},
+		{"text": "Flashing effects: %s" % ("reduced" if Settings.reduce_flash else "full"), "call": rebuild.call(Settings.toggle_reduce_flash)},
 		{"text": "Debug info: %s" % ("on" if Settings.show_debug else "off"), "call": rebuild.call(Settings.toggle_debug)},
 		{"text": "SAVE AND QUIT", "call": func() -> void:
 			GameState.save()
@@ -270,4 +277,20 @@ func _process(delta: float) -> void:
 	if not _debug_scene:
 		_director.update(delta)
 	_ambience.update(delta, _story.fear)
+	_t += delta
+	var fear := _story.fear
+	_apartment.update_flicker(fear, _t)
+	_player.shake = maxf(fear - 0.55, 0.0) * 0.012 if _story.is_free() else 0.0
+	# At high fear he blinks too long now and then, and the picture throbs with his pulse
+	_next_blink -= delta
+	if _next_blink <= 0.0 and fear > 0.6 and _story.is_free() and not Settings.reduce_flash:
+		_blink = 0.18
+		_next_blink = randf_range(18.0, 40.0)
+	elif _next_blink <= 0.0:
+		_next_blink = 10.0
+	_blink = maxf(_blink - delta, 0.0)
+	_post_mat.set_shader_parameter("blackout", clampf(_blink / 0.18, 0.0, 1.0) if _blink > 0.0 else 0.0)
+	_post_mat.set_shader_parameter("pulse", 0.0 if Settings.reduce_flash else clampf((fear - 0.5) * 2.0, 0.0, 1.0) * (0.5 + 0.5 * sin(_t * 6.4)))
 	_apply_film()
+	if Settings.reduce_flash:
+		_post_mat.set_shader_parameter("glitch", 0.0)

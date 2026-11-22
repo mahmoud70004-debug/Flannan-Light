@@ -138,4 +138,18 @@ ts = t(6.0)
 tvs = noise(6.0) * (0.6 + 0.4 * np.sin(2 * np.pi * 0.7 * ts)) + np.sin(2 * np.pi * 50 * ts) * 0.08
 tvs = hp(tvs, 400)
 save("tv_static", loopify(tvs), 0.45)
+# --- small ambient bits (not events: they are background life that may or may not mean anything) ---
+n = int(2.2 * SR); fr = np.linspace(70, 140, n) * (1 + 0.05 * np.sin(2 * np.pi * 9 * t(2.2)))
+pipe = bp(((np.cumsum(fr) / SR) % 1.0 * 2 - 1) * 0.7 + noise(2.2) * 0.2, 120, 900) * np.hanning(n) ** 0.6
+save("pipe_creak", reverb(pipe, 0.7, 0.25), 0.6)
+wnd = bp(noise(8.0), 300, 1500) * (0.5 + 0.5 * np.sin(2 * np.pi * 0.23 * t(8.0) + 1.0)) ** 2 + bp(noise(8.0), 900, 1100) * 0.2 * (0.5 + 0.5 * np.sin(2 * np.pi * 0.31 * t(8.0)))
+save("wind", loopify(wnd, 1.0), 0.4)
+tk = np.zeros(int(1.0 * SR)); place(tk, bp(noise(0.02), 2000, 6000) * env_exp(int(0.02 * SR), 0.004), 0.0)
+place(tk, bp(noise(0.02), 1500, 5000) * env_exp(int(0.02 * SR), 0.003) * 0.5, 0.5)
+save("tick", np.tile(tk, 4), 0.35)
+sy = noise(4.0); syl = np.abs(lp(noise(4.0), 6, 1)) * 6
+mur = bp(sy, 200, 900) * np.clip(syl, 0, 1) ** 1.5 * (0.6 + 0.4 * np.sin(2 * np.pi * 3.7 * t(4.0)))
+save("murmur", reverb(lp(mur, 700), 0.5, 0.3), 0.45)
+bump = np.zeros(int(1.0 * SR)); place(bump, np.sin(2 * np.pi * np.cumsum(np.linspace(60, 38, int(0.4 * SR))) / SR) * env_exp(int(0.4 * SR), 0.1), 0.0)
+save("neighbor_bump", lp(bump, 200), 0.8)
 print("sfx done:", sorted(os.listdir(OUT)))

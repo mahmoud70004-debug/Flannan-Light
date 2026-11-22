@@ -1,6 +1,6 @@
 # Daily routine
 
-**Status:** designed · **Updated:** 2026-11-21 · [GDD](../../GDD.md)
+**Status:** implemented · **Updated:** 2026-11-21 · [GDD](../../GDD.md)
 
 Each day is a short list of ordinary tasks. Events interrupt them; the task list never stops mattering, even on the worst day.
 

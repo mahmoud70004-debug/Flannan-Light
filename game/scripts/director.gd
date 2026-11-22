@@ -24,6 +24,7 @@ var _quiet := 0.0
 var _scripted: Array = []          ## [{at, do, fired}] for the current day
 var _recent: Array = []
 var _last_name := ""
+var _amb_next := 20.0
 
 
 func _ready() -> void:
@@ -45,6 +46,10 @@ func update(delta: float) -> void:
 	if not enabled or story == null or not story.is_free():
 		return
 	_quiet = maxf(_quiet - delta, 0.0)
+	_amb_next -= delta
+	if _amb_next <= 0.0 and _quiet <= 0.0:
+		_amb_next = rng.randf_range(22.0, 48.0)
+		_ambient_bit()
 	if _busy or _quiet > 0.0:
 		return
 	var t := GameState.play_seconds
@@ -70,6 +75,14 @@ func update(delta: float) -> void:
 	fire(pool[rng.randi() % pool.size()])
 
 
+## True once every scripted moment of the day has happened (the bed waits for them).
+func all_scripted_fired() -> bool:
+	for s in _scripted:
+		if not s["fired"]:
+			return false
+	return true
+
+
 ## Runs an event by name (also used for scripted moments and by tests).
 func fire(event_name: String) -> void:
 	_recent.append(event_name)
@@ -78,10 +91,38 @@ func fire(event_name: String) -> void:
 	_last_name = event_name
 	event_fired.emit(event_name)
 	var m := "_ev_" + event_name
+	_react_later(event_name)
 	if has_method(m):
 		_busy = true
 		await call(m)
 		_busy = false
+
+
+## Martin sometimes says something about what just happened (less and less as the days go on).
+func _react_later(event_name: String) -> void:
+	if story == null or story.hud == null or rng.randf() > 0.7:
+		return
+	await _wait(rng.randf_range(0.9, 1.6))
+	var line := Days.react(event_name, GameState.day)
+	if line != "" and story.is_free():
+		story.hud.say(line)
+
+
+func on_staring(delta: float) -> void:
+	if story:
+		story.boost_fear(delta * 0.12)
+
+
+func on_first_seen() -> void:
+	var line := Days.react("first_seen", GameState.day)
+	if line != "" and story and story.is_free():
+		story.hud.say(line)
+
+
+## Background life, not an event: a pipe, the neighbours, a bump through the wall. Quiet, and no reaction.
+func _ambient_bit() -> void:
+	var names := ["pipe_creak", "murmur", "neighbor_bump", "pipe_creak"]
+	Sfx.play_at(names[rng.randi() % names.size()], _far_room_pos(4.0), -9.0, 14.0, 3.0)
 
 
 # --- helpers -----------------------------------------------------------------------------------------
@@ -169,6 +210,8 @@ func _ev_footsteps_door() -> void:                 # a night event: someone at t
 
 func _ev_knock() -> void:
 	Sfx.play_at("knock3", Vector3(0.1, 1.3, -0.15), 0.0, 18.0, 4.0)
+	if story:
+		story.last_knock = story._clock
 	_fear(0.12)
 	await _wait(2.0)
 
@@ -207,11 +250,16 @@ func _ev_lights_flicker() -> void:
 	if cell == "":
 		return
 	Sfx.play_at("lamp_buzz", player.global_position + Vector3(0, 2.0, 0), -4.0, 8.0, 2.0)
-	for i in 6:
+	if Settings.reduce_flash:                        # one slow dip instead of strobing
 		apartment.set_room_lit(cell, false)
-		await _wait(rng.randf_range(0.05, 0.16))
+		await _wait(0.5)
 		apartment.set_room_lit(cell, true)
-		await _wait(rng.randf_range(0.07, 0.22))
+	else:
+		for i in 6:
+			apartment.set_room_lit(cell, false)
+			await _wait(rng.randf_range(0.05, 0.16))
+			apartment.set_room_lit(cell, true)
+			await _wait(rng.randf_range(0.07, 0.22))
 	_fear(0.1)
 	await _wait(1.0)
 
@@ -235,7 +283,7 @@ func _ev_lights_out() -> void:
 	if GameState.day >= 4 and rng.randf() < 0.8:
 		_spawn_stranger(4.0, 9.0)
 	await _wait(rng.randf_range(4.0, 6.0))
-	for i in 3:                                     # the lights come back unsteadily
+	for i in (1 if Settings.reduce_flash else 3):   # the lights come back unsteadily
 		for c in lit_before:
 			apartment.set_room_lit(c, i % 2 == 1)
 		await _wait(rng.randf_range(0.08, 0.2))
@@ -332,9 +380,9 @@ func on_stranger_vanished(by_gaze: bool) -> void:
 		var cell := _pcell()
 		if cell != "":
 			Sfx.play_at("lamp_buzz", player.global_position + Vector3(0, 2.0, 0), -6.0, 8.0, 2.0)
-			for i in 3:
+			for i in (1 if Settings.reduce_flash else 3):
 				apartment.set_room_lit(cell, false)
-				await _wait(0.07)
+				await _wait(0.07 if not Settings.reduce_flash else 0.4)
 				apartment.set_room_lit(cell, true)
 				await _wait(0.1)
 		if story and story.ambience:

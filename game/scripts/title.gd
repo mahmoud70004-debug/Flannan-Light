@@ -33,6 +33,7 @@ func _ready() -> void:
 
 	box.add_child(_label(GAME_TITLE, 64, HORIZONTAL_ALIGNMENT_CENTER))
 	box.add_child(_label("Pottsfield Studio", 22, HORIZONTAL_ALIGNMENT_CENTER, 0.55))
+	box.add_child(_label("A psychological horror · headphones recommended", 22, HORIZONTAL_ALIGNMENT_CENTER, 0.7))
 
 	if GameState.has_save() and not GameState.ended and GameState.load_game():
 		var cont := _button("CONTINUE · DAY %d" % GameState.day)
@@ -97,6 +98,14 @@ func _ready() -> void:
 	build.offset_right = -16
 	build.offset_bottom = -8
 	add_child(build)
+
+	var credits := _label("Textures: ambientCG (CC0) · Voices: Kokoro (Apache-2.0) · Engine: Godot", 16, HORIZONTAL_ALIGNMENT_LEFT, 0.4)
+	credits.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_LEFT)
+	credits.offset_left = 16
+	credits.offset_top = -30
+	credits.offset_right = 900
+	credits.offset_bottom = -8
+	add_child(credits)
 
 	_refresh_grade()
 

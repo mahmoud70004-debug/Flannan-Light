@@ -1,6 +1,6 @@
 # Narrative
 
-**Status:** designed · **Updated:** 2026-11-21 · [GDD](../../GDD.md)
+**Status:** implemented · **Updated:** 2026-11-21 · [GDD](../../GDD.md)
 
 How the story is told. The player must not learn that Martin is ill from a character saying so; they should work it out after the fact, from clues they already saw.
 
@@ -10,18 +10,19 @@ How the story is told. The player must not learn that Martin is ill from a chara
 3. **Found documents and devices:** the dismissal letter, laptop emails, phone messages, landline voicemails from Jack, appointment cards. These carry the facts and the clues.
 4. **Cutscenes only three times:** the opening (the day he was fired), the midpoint (Jack's call), the ending (the flat, weeks later). All in-engine with a controlled camera. [ASSUMPTION]
 
-## Story timeline [ASSUMPTION]
+## Story timeline (as implemented in `scripts/days.gd`)
 | Day | Martin's tasks | What happens | Clue to the truth |
 |---|---|---|---|
-| 1 | Read the letter, eat, apply for jobs | A cough in the corridor; he shrugs | The letter says "psychological problems"; he does not understand it |
-| 2 | Shower, shop list, laptop | Footsteps at night | Prescription bottle on the shelf, never touched |
-| 3 | Eat, laptop | Knocking at the closet | The chain is on the front door; nobody came in |
-| 4 | Call Jack (voicemail) | A figure at the end of the corridor, gone when the light flickers | The phone log shows no incoming calls he heard |
-| 5 | Eat, search for the intruder | Lights go out; laughter | Two plates on the table, one person |
-| 6 | Check the flat, barricade | The stranger stands in the bedroom, still | Phone photos show empty rooms |
-| 7 | Jack finally calls | Jack's side does not match what Martin answers | Jack asks about a doctor and about the pills |
-| 8–9 | Hide, no tasks work | The stranger is closer; its clothes are Martin's | The "intruder" never leaves any trace |
-| 10 | Face it | Martin stops; the screen holds; cut | Epilogue: weeks later, mail on the floor, the phone ringing and nobody answers |
+| 1 | Read the letter, eat, apply for a job | A cough from a room he isn't in | The letter: "psychological problems"; Jack's unread email |
+| 2 | Shower, eat, check the inbox | Footsteps; at night, steps at the bedroom door | Prescription mentioned by a recruiter |
+| 3 | Eat, read Whitmore's email, take the trash out | Knocking; the chain on the front door can't be passed | Whitmore describes "calls you swore you never made" |
+| 4 | Eat, the answering machine (voicemail 1), apply | Lights flicker; the stranger at the end of the hall at night | Dr. Hale's missed appointment |
+| 5 | Search the rooms, photograph the hall twice, eat | Whispers, lights out, the phone (voicemail 2) | Two plates on the table, one person; the photos |
+| 6 | Check the door and the windows, eat | Laughter, a door opens by itself, the stranger at the foot of the bed | "Locked from the inside. Always." |
+| 7 | Voicemail 3 (doctor, pills), the medicine cabinet, inbox | Lights out, the stranger | The unopened pill bottle; the pharmacy and Dr. Hale emails |
+| 8 | Find the coat, find something to eat | TV static, the stranger close | The coat is gone: the stranger is wearing it |
+| 9 | Voicemail 4, look through the photos | The stranger close, nights in the hall | Fourteen photos of empty rooms |
+| 10 | Call Jack (his greeting; Martin says nothing), look at Mom and Dad | The stranger waits in the living room; its face is his | Ending, then 41 days later |
 
 ## Edge cases
 - The player who explores everything sees the clues first; the one who only follows tasks still gets the ending.

@@ -8,6 +8,7 @@ extends Node3D
 
 signal vanished(by_gaze: bool)
 signal first_seen
+signal staring(delta: float)         ## while it is being looked at: the dread grows
 
 enum State { HIDDEN, WAITING, WATCHED }
 
@@ -32,6 +33,7 @@ var _wait := 0.0
 var _was_seen := false
 var _body: Interactable
 var _face_parts: Array[Node] = []
+var _grin: MeshInstance3D
 
 
 func _ready() -> void:
@@ -81,6 +83,8 @@ func _build() -> void:
 	sphere.rings = 8
 	var skull := _part(_head, sphere, Vector3(0, 0.17, 0), "skin")
 	skull.scale = Vector3(0.95, 1.12, 0.95)
+	# A thin, much too wide grin
+	_grin = _part(_head, _box(Vector3(0.1, 0.006, 0.008)), Vector3(0, 0.12, -0.111), "paper")
 	# Hood up behind the head
 	_part(_torso, _box(Vector3(0.36, 0.14, 0.1)), Vector3(0, 0.7, 0.1), "cloth_grey")
 	_body = Interactable.new()
@@ -190,6 +194,7 @@ func _process(delta: float) -> void:
 			if seen:
 				_watch += delta
 				_unseen = 0.0
+				staring.emit(delta)
 				if _watch > WATCH_LIMIT and not revealed:
 					vanish(true)
 			else:
@@ -211,6 +216,8 @@ func _process(delta: float) -> void:
 ## The end: the face is Martin's own.
 func reveal_as_martin() -> void:
 	revealed = true
+	if _grin:
+		_grin.visible = false
 	var eye := SphereMesh.new()
 	eye.radius = 0.018
 	eye.height = 0.036

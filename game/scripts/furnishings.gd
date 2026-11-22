@@ -191,6 +191,7 @@ static func _entry(a: Apartment) -> void:
 		_p(a, c, Vector3(0.55 + float(i % 3) * 0.08, 0.012 + float(i) * 0.006, -0.55 + sin(float(i)) * 0.07), Vector3(0.22, 0.004, 0.14), "paper", float(i) * 0.7, false)
 	a.use_point("mail", "Read the mail", Vector3(0.7, 0.4, 0.7), Vector3(0.6, 0.2, -0.55))
 	_picture(a, c, Vector3(-0.94, 1.5, -1.7), Vector3(1, 0, 0), 0.5, 0.65, "glass")                  # a dark mirror
+	a.use_point("mirror_entry", "The mirror", Vector3(0.4, 0.8, 0.7), Vector3(-0.78, 1.5, -1.7))
 	a.stain(c, Vector3(0.1, 2.49, -1.4), Vector3(0, -1, 0), 1.0)
 	a.stain(c, Vector3(1.14, 0.9, -0.4), Vector3(-1, 0, 0), 0.7, 1.4)
 	_litter(a, c, Vector3(0.2, 0, -1.4), 3, 0.4, 1)
@@ -236,6 +237,8 @@ static func _kitchen(a: Apartment) -> void:
 	a.stain(c, Vector3(3.0, 2.49, -1.2), Vector3(0, -1, 0), 1.6)
 	a.stain(c, Vector3(3.0, 1.5, -0.11), Vector3(0, 0, -1), 1.0, 1.4)
 	a.stain(c, Vector3(4.89, 0.5, -1.7), Vector3(-1, 0, 0), 0.9, 1.0)
+	_picture(a, c, Vector3(2.0, 1.5, -2.14), Vector3(0, 0, 1), 0.34, 0.45, "paper")                   # the calendar
+	a.use_point("calendar", "The calendar", Vector3(0.6, 0.7, 0.5), Vector3(2.0, 1.5, -2.0))
 	a.use_point("fridge", "Open the fridge", Vector3(0.8, 1.8, 0.8), Vector3(4.55, 0.9, -0.45))
 	a.use_point("trash", "The trash", Vector3(0.8, 0.8, 0.9), Vector3(4.5, 0.4, -1.7))
 	a.use_point("kitchen_food", "Look at the food", Vector3(0.9, 0.5, 0.6), Vector3(2.8, 1.0, -0.4))
@@ -298,6 +301,10 @@ static func _living(a: Apartment) -> void:
 	_p(a, c, Vector3(0.45, 0.5, -9.22), Vector3(0.18, 0.22, 0.03), "dark_wood", 0.0, false)          # the framed photo of Mom and Dad
 	_p(a, c, Vector3(0.45, 0.5, -9.2), Vector3(0.14, 0.18, 0.034), "paper", 0.0, false)
 	a.use_point("photo_parents", "Look at the photo", Vector3(0.4, 0.4, 0.4), Vector3(0.45, 0.5, -9.2))
+	_p(a, c, Vector3(-0.92, 1.95, -7.0), Vector3(0.04, 0.34, 0.34), "white", 0.0, false)             # wall clock
+	_p(a, c, Vector3(-0.895, 1.95, -7.0), Vector3(0.012, 0.012, 0.13), "black", 0.0, false)
+	_p(a, c, Vector3(-0.895, 1.99, -6.95), Vector3(0.012, 0.1, 0.012), "black", 0.0, false)
+	a.use_point("clock", "The clock", Vector3(0.4, 0.6, 0.6), Vector3(-0.85, 1.95, -7.0))
 	a.use_point("window_living", "Look outside", Vector3(0.4, 1.3, 1.4), Vector3(4.8, 1.5, -8.4))
 	_bottles(a, c, Vector3(2.5, 0, -4.0), 6, Vector2(0.9, 0.5), 33, 0.4)
 	_litter(a, c, Vector3(1.8, 0, -4.2), 9, 1.2, 7)

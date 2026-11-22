@@ -4,12 +4,18 @@ First-person 3D psychological horror for Android, by Pottsfield Studio. Martin h
 
 **Play the latest build:** https://mahmoud70004-debug.github.io/Flannan-Light/ (updates automatically on every push to `main`; the build number is shown on the title screen; the URL changes when the repository is renamed).
 
-Status: pre-production, phase 1 (look dev). See [docs/GDD.md](docs/GDD.md) and [docs/DEVELOPMENT-PLAN.md](docs/DEVELOPMENT-PLAN.md). Working title. The previous game, Flannan Light, is kept on the branch `archive/flannan-light-v1`.
+Status: the whole game is playable on the `dev` branch (ten days, ending, save). `main` deploys the web build and is only updated on request. See [docs/GDD.md](docs/GDD.md) and [docs/DEVELOPMENT-PLAN.md](docs/DEVELOPMENT-PLAN.md). Working title. The previous game, Flannan Light, is kept on the branch `archive/flannan-light-v1`.
+
+## Branches
+- `main` builds and deploys the web build to GitHub Pages on every push.
+- `dev` is where work happens: every push runs the import, the smoke test (a bot plays all ten days and the ending) and a web-export check, without deploying.
+- `archive/flannan-light-v1` is the previous game.
 
 ## Layout
 - `game/` Godot 4.7.2 project (GDScript, Compatibility renderer).
 - `.github/workflows/deploy.yml` builds the web export and publishes it to GitHub Pages.
 - `docs/` design documents, `docs/CREDITS.md` asset credits.
+- `tools/audio`, `tools/tts` generators for every sound and voice (numpy, kokoro-onnx); outputs are committed under `game/assets/audio`.
 
 ## Run locally
 ```bash

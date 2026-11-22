@@ -1,6 +1,6 @@
 # Hallucination director
 
-**Status:** designed · **Updated:** 2026-11-21 · [GDD](../../GDD.md)
+**Status:** implemented · **Updated:** 2026-11-21 · [GDD](../../GDD.md)
 
 Schedules small wrong things inside the player's tasks. Nothing it does hurts Martin or blocks him; a scare is a sound, a light, or a figure that was not there a second ago.
 

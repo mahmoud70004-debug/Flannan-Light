@@ -20,6 +20,7 @@ uniform float blackout = 0.0;            // 0 normal .. 1 fully black (blinks, l
 uniform float pixel_size = 1.0;          // block size in pixels at 540p image height
 uniform float levels = 256.0;            // colour levels per channel (256 = off)
 uniform float dither_amount = 0.0;       // 0..1 strength of the Bayer pattern
+uniform float pulse = 0.0;               // heartbeat throb of the vignette, 0..1
 uniform float glitch = 0.0;              // 0..1 occasional horizontal tearing
 
 const float BAYER[16] = float[16](
@@ -65,7 +66,7 @@ void fragment() {
 	col = mix(vec3(l), col, saturation * (1.0 - fear * 0.55));
 	col *= mix(shadow_tint, highlight_tint, smoothstep(0.1, 0.8, l));
 
-	float v = vignette + fear * 0.35;
+	float v = vignette + fear * 0.35 + pulse * 0.12;
 	vec2 dv = UV - 0.5;
 	col *= 1.0 - v * smoothstep(0.18, 0.78, length(dv) * 1.55);
 

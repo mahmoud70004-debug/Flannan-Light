@@ -353,6 +353,7 @@ func _playthrough() -> void:
 	var done := [false]
 	story.finished.connect(func() -> void: done[0] = true)
 	gs.new_game()
+	director.enabled = true                           # the debug scene switches it off
 	await story.start_day()
 	_check(story.is_free() and gs.day == 1, "day 1 begins after the card")
 	for day in range(1, Days.COUNT + 1):
@@ -369,6 +370,13 @@ func _playthrough() -> void:
 			_check(gs.is_done(t["id"]), "day %d: task '%s' completes" % [day, t["id"]])
 		if data.get("final", false):
 			break
+		# Too early to sleep until the day's scripted moments have happened: let the clock run ahead
+		gs.play_seconds = 400.0
+		var tw := Time.get_ticks_msec()
+		while not director.all_scripted_fired() and (Time.get_ticks_msec() - tw) < 90000:
+			director.update(0.1)                       # the world does not run the director in this debug scene
+			await process_frame
+		_check(director.all_scripted_fired(), "day %d: every scripted event fires" % day)
 		story.on_used("bed1")
 		var waited := 0.0
 		var t0 := Time.get_ticks_msec()

@@ -15,6 +15,7 @@ var fx: int = 4                        ## pixel/dither filter: 0 off, 1-3 fixed,
 var msaa: int = 0                      ## 0 off, 1 = 2x, 2 = 4x
 var shadows: int = 0                   ## 0 off, 1 corridor lamps, 2 every lamp
 var show_debug: bool = false
+var reduce_flash: bool = false        ## calmer picture: no strobing lamps, blinks, throbbing or tearing
 var volume: float = 1.0                ## master volume 0..1
 
 
@@ -35,6 +36,7 @@ func _ready() -> void:
 	msaa = clampi(int(cfg.get_value("video", "msaa", msaa)), 0, 2)
 	shadows = clampi(int(cfg.get_value("video", "shadows", shadows)), 0, 2)
 	volume = clampf(cfg.get_value("audio", "volume", volume), 0.0, 1.0)
+	reduce_flash = bool(cfg.get_value("video", "reduce_flash", reduce_flash))
 
 
 func save() -> void:
@@ -48,6 +50,7 @@ func save() -> void:
 	cfg.set_value("video", "msaa", msaa)
 	cfg.set_value("video", "shadows", shadows)
 	cfg.set_value("audio", "volume", volume)
+	cfg.set_value("video", "reduce_flash", reduce_flash)
 	cfg.set_value("debug", "show_debug", show_debug)
 	cfg.save(PATH)
 	changed.emit()
@@ -71,6 +74,11 @@ func cycle_grade() -> void:
 
 func cycle_volume() -> void:
 	volume = {1.0: 0.7, 0.7: 0.4, 0.4: 0.0}.get(snappedf(volume, 0.1), 1.0)
+	save()
+
+
+func toggle_reduce_flash() -> void:
+	reduce_flash = not reduce_flash
 	save()
 
 

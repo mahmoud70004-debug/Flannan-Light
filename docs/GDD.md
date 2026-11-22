@@ -1,6 +1,6 @@
 # No One Home — Game Design Document
 
-**Version:** 0.2 · **Updated:** 2026-11-22 · [Features](#feature-index) · [Decisions](#decisions) · [Change log](#change-log)
+**Version:** 0.3 · **Updated:** 2026-11-22 · [Features](#feature-index) · [Decisions](#decisions) · [Change log](#change-log)
 
 > Replaces *Flannan Light* (lighthouse island), which is kept on branch `archive/flannan-light-v1`. The technical pipeline is unchanged; story, setting, look and name are new. "No One Home" is a working title (one constant in `scripts/title.gd`).
 
@@ -37,23 +37,18 @@ wake → what Martin does today (tasks) → events interrupt the tasks → night
 - **Session:** a day ends at sleep; the next day has new tasks and a notch more wrongness. Jack's calls ring on the landline at the far end of the corridor ([narrative](features/narrative/design.md)).
 
 ## The flat
-A flat of about 95 m² built from data in `scripts/apartment.gd` (rooms on a grid; walls derived from where rooms touch; a list of doors, arches and windows). It is **T-shaped, with 13 rooms and many walls**, so nothing shows the whole flat at once: from the front door the player sees only a short hall and a closed door. Every interior door has the same 0.90 m opening (leaf 0.86 × 2.0 m, ceiling 2.5 m) and the player capsule is 0.54 m wide; the smoke test walks every door and arch in both directions.
+A flat of about 100 m² built from data in `scripts/apartment.gd` (rooms on a grid; walls derived from where rooms touch; lists of doors, arches and windows) and furnished in `scripts/furnishings.gd`. It is an **open plan**: the **living room is the heart** (6.0 × 7.4 m), with the kitchen and the entry opening onto it through arches, and a hall running west to the private rooms. Every door has the same 0.90 m opening, and a test floods the floor with a fat player capsule to prove that every room, aisle and prop is reachable.
 
 | Room | Size (m) | Notes |
 |---|---|---|
-| Front hall | 1.4 × 4.6 | Front door (chain on), shoe rack, coats, dark mirror, mail on the floor; the hall door at its north end starts **closed** |
-| Back hall | 1.4 × 5.4 | Landline and window at the far end; opens west through an arch into the west leg |
-| West leg | 5.6 × 1.4 | Leads to the bedroom, Dad's room and Jack's old room; window at the end |
-| Bathroom | 2.4 × 2.6 | Damp walls, tub with the shower curtain drawn |
-| Dad's room | 2.4 × 3.4 | Boxes, his armchair, radio, family photo |
-| Bedroom | 3.1 × 3.4 | Bed, wardrobe, door to the dressing room |
-| Dressing room | 3.1 × 2.6 | Clothes rail, suitcase, mirror |
-| Jack's old room | 3.1 × 2.6 | Old bed, desk, trophies |
-| Utility | 2.4 × 2.6 | Washing machine, boiler |
-| Kitchen | 4.6 × 3.0 | Two plates on the table, one person; arch to the living room |
-| Living room | 4.6 × 5.0 | Sofa, TV, desk with the laptop and job applications |
-| Box room | 2.2 × 2.0 | Furniture under sheets |
-| Study | 2.4 × 2.0 | Old computer, files |
+| Entry | 2.2 × 2.2 | Front door with the chain on, shoe rack, Martin's grey coat, the mail piling up, a dark mirror |
+| Living room | 6.0 × 7.4 | Sofa, TV, desk with the laptop and job applications, a dining table with food that has been left to rot, empty beer bottles, flies; two big east windows |
+| Kitchen | 3.8 × 2.2 | Counters, fridge, a calendar, a clock, rotting plates and a pot, the **trash corner** (overflowing bin, bags, empty beer bottles, flies) |
+| Hall | 5.4 × 1.4 | The landline and answering machine at the far west end, under a window |
+| Bathroom | 2.6 × 2.6 | Damp walls, tub with the shower curtain drawn, medicine cabinet (the pills) |
+| Storage | 2.8 × 2.6 | Dad's boxes and his armchair, the family photo |
+| Martin's bedroom | 3.0 × 4.0 | Bed, wardrobe, beer bottles and clothes on the floor |
+| Jack's old room | 2.4 × 4.0 | Old bed, desk (J + M 1998), trophies |
 
 ## Feature index
 
@@ -63,16 +58,17 @@ A flat of about 95 m² built from data in `scripts/apartment.gd` (rooms on a gri
 | Photo renderer | implemented | MVP | 3D at 360–1080p, film shader (grade, grain, vignette, fringe, bloom, `fear` and `blackout` hooks), 4 grades | — |
 | Pixel/dither filter (FX) | implemented | MVP | Stacks on any grade: pixel blocks, fewer colour levels and a Bayer dither that grow with `fear`; OFF / LOW / MID / HIGH / AUTO (AUTO ramps over about ten minutes with spikes; events call `boost_fear`) | — |
 | Mobile controls | implemented | MVP | Floating stick, right-side look tracked per finger, Use button, debug strip (GRADE, RES, SHADOW, FX) | — |
-| Menus and settings | in progress | MVP | Title, grade, brightness, sensitivity, picture height | — |
-| Narrative | designed | MVP | In-engine scripted moments, inner-monologue lines, found documents, phone messages | [design](features/narrative/design.md) |
-| Daily routine | designed | MVP | Task list per day (eat, job search, sleep) driving the day | [design](features/daily-routine/design.md) |
-| Hallucination director | designed | MVP | Data-driven events: sounds, lights out, the stranger, never an attack | [design](features/hallucination-director/design.md) |
-| Phone and landline | idea | MVP | Jack's calls and voicemails, phone gallery as a reality check | — |
-| Audio | idea | MVP | Spatial 3D sounds (footsteps, cough, laughter, knock), room tone, silence as a tool | — |
-| The stranger | idea | MVP | One uncanny human figure, stop-motion at 12 fps, only moves while unseen | — |
-| Save and continue | idea | MVP | Autosave at sleep, one slot, `user://` | — |
+| Menus and settings | implemented | MVP | Title (continue / new game), pause menu (look, pixel filter, picture height, shadows, anti-aliasing, volume, debug info) | — |
+| Narrative | implemented | MVP | In-engine scripted moments, inner-monologue lines, found documents, phone messages | [design](features/narrative/design.md) |
+| Daily routine | implemented | MVP | Task list per day (eat, job search, sleep) driving the day | [design](features/daily-routine/design.md) |
+| Hallucination director | implemented | MVP | Data-driven events: sounds, lights out, the stranger, never an attack | [design](features/hallucination-director/design.md) |
+| Phone and landline | implemented | MVP | The landline rings at the far end of the hall; the answering machine plays Jack's voicemails (am_onyx, captioned). Day 10: Martin calls Jack and says nothing. The phone camera (from day 4) only ever shows empty rooms | — |
+| Audio | implemented | MVP | 40+ synthesised sounds (`tools/audio`) and generated voices (`tools/tts`): positional footsteps, cough, laughter, knocks, whispers, buzzing flies that get louder as you near, fridge, drip, drone and heartbeat that follow fear; background hushed on purpose before scares | — |
+| The stranger | implemented | MVP | One tall figure in Martin's own hoodie and jeans. Stop-motion at 12 fps, appears only unseen, holds still while watched, creeps closer when you look away, gone when stared at or approached; the face is Martin's at the end | — |
+| Save and continue | implemented | MVP | One slot in `user://`, saved after each task and each night; CONTINUE on the title screen | — |
+| Decay and flies | implemented | MVP | Rotting food, trash corner, beer bottles, fly swarms (one GPU draw call each) that grow worse by day | — |
 | Photographic assets | idea | later | Blender-modelled furniture, baked lighting, props | — |
-| Endings | idea | MVP | One ending: found dead, the unanswered phone | — |
+| Endings | implemented | MVP | Day 10: the stranger wears Martin's face; the epilogue, 41 days later, with Jack's last three voicemails and the closing cards | — |
 
 ## Milestones
 1. **M0, pipeline:** web build on the phone, stick + look. *Done in Flannan Light and kept.*
@@ -92,8 +88,12 @@ A flat of about 95 m² built from data in `scripts/apartment.gd` (rooms on a gri
 | D-006 | 2026-11-22 | T-shaped layout with a closed hall door, 13 rooms, no room more than 1.8:1 | One straight corridor with rooms off it | Playtest: one straight corridor reads as unreal and shows everything | Apartment |
 | D-007 | 2026-11-22 | Hide rooms not reachable through open doors (draw calls 200 → 40–75) | Occlusion culling | CPU-side occlusion is too costly in the single-threaded web build | Apartment |
 | D-008 | 2026-11-22 | The pixel/dither filter is a separate setting on top of the grade, driven by fear | A fifth grade | The look must degrade as tension rises, and be tunable independently of colour | Pixel/dither filter |
+| D-009 | 2026-11-22 | Open plan with the living room as the heart, 8 rooms | 13 rooms in a T | Playtest: too many walls; the user asked for a living room, two bedrooms, a storage room and a bathroom only | Apartment |
+| D-010 | 2026-11-22 | `dev` branch for work, `main` only deploys on request; tests run on every push | Push to main | The user will say when to publish | CI |
+| D-011 | 2026-11-22 | Voices generated offline with kokoro-onnx (am_onyx for Jack), SFX synthesised in numpy | Recorded audio | No recordings available; the user chose the voice from candidates | Audio |
 | D-004 | 2026-11-21 | Real-time lights per room, ambient low, no baking yet | Baked lightmaps now | Lights must be able to go out; baking comes later as indirect light only (see development plan) | Apartment |
 
 ## Change log
+- 2026-11-22: The whole game is playable end to end on `dev` (v0.3): ten days, tasks, documents, voicemails, director, stranger, endings, save; open-plan flat with rot and flies.
 - 2026-11-22: Flat redesigned (T-shape, 13 rooms, standard doors, detail pass); pixel/dither filter added; FOV and player size fixed (v0.2).
 - 2026-11-21: New project replaces Flannan Light (v0.1).

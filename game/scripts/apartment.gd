@@ -627,6 +627,20 @@ func toggle_room(room: String) -> void:
 	set_room_lit(room, not room_lit(room))
 
 
+## Lamps waver a little more the higher the fear is (called every frame by the world).
+func update_flicker(fear: float, t: float) -> void:
+	if fear < 0.15:
+		return
+	var i := 0
+	for room in lamps:
+		for l in lamps[room]:
+			var light: Light3D = l["light"]
+			if light.visible:
+				var w := sin(t * 13.0 + float(i) * 1.7) * sin(t * 7.3 + float(i) * 2.9)
+				light.light_energy = float(l["energy"]) * (1.0 + fear * 0.2 * w - (0.0 if fear < 0.6 or w < 0.7 else fear * 0.25))
+			i += 1
+
+
 func apply_shadows(level: int) -> void:
 	for room in lamps:
 		for l in lamps[room]:
