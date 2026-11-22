@@ -38,13 +38,14 @@ The first takes sounded synthetic: every sentence was read at 0.9x with the same
 Now speed stays at or above 1.0, every chunk has its own speed, pitch and level jitter, gaps vary, and the worry comes
 from short broken phrases, breaths and sighs.
 
-Three messages are live calls (`"call": true` in their JSON): the phone rings and Martin picks up. His voice (am_adam)
-is lowered, dulled, squashed and quiet, and his answers come late. Each call is a little wrong-er:
+Three messages are live calls (`"call": true` in their JSON): the phone rings and Martin picks up. His first take
+(lowered, dulled, squashed, 0.9x) sounded robotic, so Martin is now voiced like Jack: am_adam at normal speed with the
+same jitter, only quicker and tenser. The dialogue is short and gets worse each time; he tells Jack what he sees and hears.
 
 | Day | Call | Martin |
 |---|---|---|
-| 5 | vm2 | "Yeah." "I'm fine." Short, tired, nearly normal. |
-| 7 | vm3 | Repeats Jack's words ("Doctor Hale." "I'm taking the pills."), answers after 1 to 1.5 s. |
-| 9 | vm4 | "Nobody has come." "There's someone else on the line." "He's listening." A second breath joins the line. |
+| 5 | vm2 | Hides it: "It's just the building. Something knocks, at night." "It's the pipes. Forget it." |
+| 7 | vm3 | Admits it: he stopped seeing Dr. Hale; sees someone at the end of the hall who is gone when he looks again; hears laughing, footsteps, knocking with nobody there; "I don't know. I think so. They don't help." |
+| 9 | vm4 | Frantic: "It stands there, and when I look it's gone, and then I hear it laughing." The phone rings with nobody there, the TV comes on, it whispered his name. Then, whispering: "There's someone else on the line. He's listening." A second breath joins the line. |
 
 Voicemails (vm0, vm1, vm5 to vm7) are still Jack alone, through the machine. Captions carry the speaker (`who`).

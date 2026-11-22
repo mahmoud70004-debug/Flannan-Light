@@ -42,17 +42,28 @@ def retune(x, ratio):
     return resample_poly(x, f.denominator, f.numerator).astype(np.float32)
 
 
+def whisperize(a):
+    """Speech envelope on noise (a channel vocoder): breath with words in it."""
+    from scipy.signal import stft, istft
+    f, tt, Z = stft(a, fs=SR, nperseg=512)
+    _, _, N = stft(rng.normal(0, 1, len(a)), fs=SR, nperseg=512)
+    _, w = istft(np.abs(Z) * np.exp(1j * np.angle(N)), fs=SR, nperseg=512)
+    w = sosfilt(sos_bp(500, 6500), w[: len(a)].astype(np.float32))
+    return (w * 2.2).astype(np.float32)
+
+
 def speak(text, who, speed):
-    """One chunk of speech. Jack: am_onyx, varied. Martin: am_adam, lowered, flattened and quiet."""
-    if who == "J":
-        a, _ = k.create(text, voice="am_onyx", speed=speed * rng.uniform(0.97, 1.04), lang="en-us")
-        a = retune(a.astype(np.float32), rng.uniform(0.985, 1.015))       # a different pitch each time
-        return a * rng.uniform(0.82, 0.95)
-    a, _ = k.create(text, voice="am_adam", speed=speed, lang="en-us")
-    a = retune(a.astype(np.float32), 0.955)                               # lower, slower, no life in it
-    a = sosfilt(butter(2, 2600, btype="low", fs=SR, output="sos"), a)     # dull
-    a = np.tanh(a * 2.4) / 2.4 * 1.6                                      # squashed dynamics: monotone-ish
-    return (a * 0.42).astype(np.float32)
+    """One chunk of speech. J: Jack (am_onyx). M: Martin (am_adam), jittered the same way so he sounds like
+    a person, quick and tense. W: Martin whispering."""
+    voice = "am_onyx" if who == "J" else "am_adam"
+    a, _ = k.create(text, voice=voice, speed=speed * rng.uniform(0.97, 1.04), lang="en-us")
+    a = retune(a.astype(np.float32), rng.uniform(0.985, 1.015))
+    if who == "W":
+        return whisperize(a) * 0.42
+    if who == "M":
+        a = sosfilt(butter(1, 5200, btype="low", fs=SR, output="sos"), a)   # a little closed-in, nothing more
+        return a * rng.uniform(0.82, 0.95) * 0.62                           # am_adam is louder than am_onyx
+    return a * rng.uniform(0.82, 0.95)
 
 
 def reverb(x, sec=0.3, wet=0.07):
@@ -98,7 +109,7 @@ def build(name, segs, call=False, lead=0.5, tail=0.3, under=None):
     print(name, round(len(x) / SR, 1), "s", "call" if call else "")
 
 
-J, M = "J", "M"
+J, M, W = "J", "M", "W"
 
 # Voicemails: Jack alone, short, broken up by worry rather than slowed down.
 build("vm0", [
@@ -114,41 +125,42 @@ build("vm1", [
     (J, "Just call me, okay? Even if it's late. I'll stay up.", .5, 1.03, ""),
 ])
 
-# Calls: the phone rings, Martin picks up. His answers are flat and come late; each call is a little worse.
-build("vm2", [      # day 5: nearly normal, only tired and short
-    (M, "Hello.", .4, 0.92, ""),
-    (J, "Martin? Oh, thank God. You picked up.", .5, 1.05, ""),
-    (M, "Yeah.", .9, 0.9, ""),
-    (J, "How are you doing? Are you eating?", .4, 1.05, ""),
-    (M, "I'm fine.", 1.3, 0.9, ""),
-    (J, "You sound tired.", .5, 1.04, ""),
-    (M, "I'm fine, Jack.", 1.1, 0.9, ""),
-    (J, "Okay. Okay. I'm just glad to hear your voice. Call me tomorrow?", .6, 1.05, "breath"),
-    (M, "Okay.", 1.4, 0.9, ""),
+# Calls: the phone rings, Martin picks up. He is quick and tense, and tells Jack what he sees and hears.
+# Each call he admits more, and the last one ends with someone else on the line.
+build("vm2", [      # day 5: he tries to hide it
+    (M, "Hello?", .4, 1.08, ""),
+    (J, "Martin? Oh, thank God. You picked up.", .4, 1.05, ""),
+    (M, "Hey, Jack. Yeah. Sorry. I've been... busy.", .5, 1.08, "breath"),
+    (J, "Busy? Martin, you sound awful. Are you sleeping?", .4, 1.05, ""),
+    (M, "Not really. It's just the building. Something knocks, at night.", .5, 1.1, ""),
+    (J, "Knocks?", .4, 1.02, ""),
+    (M, "It's nothing. It's the pipes. Forget it.", .5, 1.12, ""),
+    (J, "Okay. Okay. Call me tomorrow?", .5, 1.04, "breath"),
+    (M, "Yeah. Tomorrow.", .7, 1.05, ""),
 ], call=True)
-build("vm3", [      # day 7: slow, repeats Jack's words, a wrong note
-    (M, "Hello.", .5, 0.9, ""),
-    (J, "Martin, it's Jack. I talked to your old boss today.", .4, 1.06, ""),
-    (M, "Okay.", 1.2, 0.9, ""),
-    (J, "He said you haven't been right since the funeral. Are you still seeing Doctor Hale?", .4, 1.06, "breath"),
-    (M, "Doctor Hale.", 1.4, 0.88, ""),
-    (J, "Are you taking the pills?", .4, 1.02, ""),
-    (M, "I'm taking them.", 1.3, 0.88, ""),
-    (M, "I'm taking the pills.", 1.0, 0.88, ""),
-    (J, "Martin, you sound strange.", .6, 1.02, ""),
-    (M, "Do I?", 1.5, 0.88, ""),
-    (J, "I love you, man. Call me.", .5, 1.02, "sigh"),
+build("vm3", [      # day 7: he admits it
+    (M, "Hello? Jack?", .3, 1.1, ""),
+    (J, "Martin, it's me. I talked to your old boss today. He says you haven't been right since the funeral. Are you still seeing Doctor Hale?", .4, 1.06, "breath"),
+    (M, "No. I stopped going. What would I even tell her?", .6, 1.08, ""),
+    (J, "Tell her what?", .4, 1.02, ""),
+    (M, "That I see things, Jack. Someone at the end of the hall. And when I look again, he's gone.", .6, 1.1, "breath"),
+    (J, "Martin...", .5, 1.0, ""),
+    (M, "And I hear worse. Laughing. Footsteps. Someone knocking, and nobody there.", .5, 1.12, ""),
+    (J, "Are you taking the pills?", .5, 1.02, ""),
+    (M, "I don't know. I think so. They don't help.", .8, 1.05, "sigh"),
+    (J, "Call Doctor Hale tomorrow. Please. I love you, man.", .5, 1.04, ""),
+    (M, "Okay.", .8, 1.0, ""),
 ], call=True)
-build("vm4", [      # day 9: Jack begs, Martin answers like a recording, and says there is someone on the line
+build("vm4", [      # day 9: frantic, and then not alone on the line
     (J, "Martin? Martin, pick up. Please.", .3, 1.08, ""),
-    (M, "I'm here.", 1.3, 0.88, ""),
-    (J, "I can't get off work till after the holidays. I'm sorry. I'll come as soon as I can.", .4, 1.08, "breath"),
-    (M, "It's all right.", 1.5, 0.86, ""),
-    (M, "Nobody has come.", 1.6, 0.86, ""),
-    (J, "What? What do you mean?", .5, 1.05, ""),
-    (M, "There's someone else on the line.", 1.8, 0.86, ""),
-    (J, "Martin, it's just me. Stay on the phone with me, okay?", .5, 1.08, ""),
-    (M, "He's listening.", 2.0, 0.84, ""),
+    (M, "Jack. Jack, I'm here. Don't hang up.", .3, 1.15, "breath"),
+    (J, "I can't get off work till after the holidays. I'm sorry. I'll come as soon as I can.", .4, 1.08, ""),
+    (M, "It's in the flat, Jack. Every night. It stands there, and when I look it's gone, and then I hear it laughing.", .4, 1.16, ""),
+    (J, "Martin, listen to me. There's nobody there.", .5, 1.05, ""),
+    (M, "The phone rings and nobody's there. The TV comes on by itself. Last night it whispered my name.", .4, 1.16, "breath"),
+    (J, "Stay on the phone with me, okay? Just stay with me.", .5, 1.06, ""),
+    (W, "There's someone else on the line.", 1.0, 0.95, ""),
+    (W, "He's listening.", 1.4, 0.9, ""),
 ], call=True, under=(7, 0.05))
 
 # Messages Jack leaves while Martin lies in the flat (the epilogue).
