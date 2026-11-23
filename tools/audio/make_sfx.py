@@ -35,15 +35,15 @@ def save(name, x, peak=0.85):
     import soundfile as sf
     sf.write(os.path.join(OUT, name + ".wav"), norm(x, peak).astype(np.float32), SR)
 
-# --- footsteps (wooden floor), 4 variants ---------------------------------------------
+# --- footsteps (socks/slippers on a wooden floor), 4 variants: soft and low, no sharp creak tick -----
 for i in range(4):
-    n = int(0.45 * SR); x = np.zeros(n)
-    f0 = 85 - i * 6
-    th = np.sin(2 * np.pi * np.cumsum(np.linspace(f0, 38, n)) / SR) * env_exp(n, 0.07)
-    nz = bp(noise(0.45), 180, 1500) * env_exp(n, 0.035) * 0.7
-    cr = bp(noise(0.45), 700 + 150 * i, 1500 + 200 * i) * env_exp(n, 0.012) * 0.25   # board creak tick
-    x = th + nz + cr
-    save(f"step_{i}", reverb(x, 0.5, 0.18))
+    n = int(0.4 * SR)
+    f0 = 70 - i * 5
+    th = np.sin(2 * np.pi * np.cumsum(np.linspace(f0, 40, n)) / SR) * env_exp(n, 0.06)
+    nz = lp(bp(noise(0.4), 120, 700), 650) * env_exp(n, 0.03) * 0.35
+    x = th + nz
+    x = lp(x, 600)
+    save(f"step_{i}", reverb(x, 0.4, 0.1), 0.45)
 
 # --- knocks on a door ---------------------------------------------------------------------
 def knock():
@@ -116,8 +116,8 @@ click = np.zeros(int(0.12 * SR)); place(click, bp(noise(0.03), 1500, 6000) * env
 save("click", click, 0.7)
 sh = np.zeros(int(0.5 * SR)); place(sh, bp(noise(0.05), 1200, 7000) * env_exp(int(0.05 * SR), 0.008), 0.0); place(sh, bp(noise(0.05), 1200, 7000) * env_exp(int(0.05 * SR), 0.01), 0.12)
 save("shutter", sh, 0.7)
-pick = np.zeros(int(0.5 * SR)); place(pick, lp(noise(0.12), 900) * env_exp(int(0.12 * SR), 0.03), 0.0); place(pick, np.sin(2 * np.pi * 110 * t(0.3)) * env_exp(int(0.3 * SR), 0.08) * 0.5, 0.02)
-save("handset", pick, 0.6)
+pick = np.zeros(int(0.3 * SR)); place(pick, lp(noise(0.08), 700) * env_exp(int(0.08 * SR), 0.02), 0.0); place(pick, np.sin(2 * np.pi * 140 * t(0.15)) * env_exp(int(0.15 * SR), 0.04) * 0.3, 0.01)
+save("handset", pick, 0.35)
 
 # --- body: heartbeat, breath, electric buzz ------------------------------------------------------------
 hb = np.zeros(int(1.0 * SR))

@@ -47,6 +47,8 @@ var _dread := 0.0                         ## 0..1: time spent in the dark at nig
 var _hall_goes_dark := false
 var _lost_time := false
 var _dread_hint := false
+var _in_call := false                     ## on the phone: he can walk about, but not use anything
+var _warmed := false
 var _announced := ""                      ## the task whose objective is on screen ("_sleep": go to bed; "": a quiet spell)
 var _task_timer := -1.0                   ## seconds until the next thought and objective (< 0: none pending)
 var last_knock := -999.0
@@ -54,7 +56,7 @@ var _ended := false
 
 
 func is_free() -> bool:
-	return not busy and not hud.doc_open and not hud.card_open and not hud.menu_open
+	return not busy and not _in_call and not hud.doc_open and not hud.card_open and not hud.menu_open
 
 
 func boost_fear(amount: float) -> void:
@@ -200,7 +202,7 @@ func _task_list(data: Dictionary) -> Array:
 
 ## The quiet between two tasks: longer at first, a little shorter as the days press in.
 func _gap() -> float:
-	return lerpf(38.0, 24.0, clampf(float(GameState.day - 1) / 9.0, 0.0, 1.0))
+	return lerpf(16.0, 10.0, clampf(float(GameState.day - 1) / 9.0, 0.0, 1.0))
 
 
 ## Martin thinks aloud about the next thing, then the objective appears at the top of the screen.
@@ -223,7 +225,7 @@ func _announce() -> void:
 		if think != "":
 			hud.say(think)
 			await hud.wait_lines()
-			await get_tree().create_timer(0.9).timeout
+			await get_tree().create_timer(0.4).timeout
 	_refresh_objective()
 
 
@@ -313,6 +315,9 @@ func start_day() -> void:
 	_notice_t = {}
 	_hall_goes_dark = false
 	_clear_loops()
+	if not _warmed:
+		_warmed = true
+		await _prewarm()
 	_apply_environment(data)
 	GameState.play_seconds = 0.0
 	hud.hide_tasks()
@@ -338,7 +343,7 @@ func start_day() -> void:
 	_announced = ""
 	hud.set_objective("")
 	var progress := _task_progress(data) > 0.0 or not GameState.step_index.is_empty()
-	_task_timer = 4.0 if progress else (40.0 if GameState.day == 1 else 22.0)   # first, time to look around
+	_task_timer = 4.0 if progress else (9.0 if GameState.day == 1 else 6.0)   # first, time to look around
 	if GameState.day == 4 and not GameState.flag("hint_photo"):
 		GameState.set_flag("hint_photo")
 		hud.say("My phone has a camera. The PHOTO button, up there.", 4.5)
@@ -347,6 +352,28 @@ func start_day() -> void:
 		hud.say("Walk with the left thumb. Look with the right. USE to touch things.", 5.5)
 	busy = false
 	_check_final()
+
+
+## Everything the game will ever draw or play is shown or loaded once, behind a black screen, so that no shader
+## compiles and no sound loads in the middle of a scare (the first minutes of a phone session stalled otherwise).
+func _prewarm() -> void:
+	hud.set_fade(1.0)
+	Audio.warm()
+	var old_viewer := apartment.viewer
+	apartment.show_everything()
+	for c in apartment.lamps:
+		apartment.set_room_lit(c, true)
+	for id in apartment.movables:
+		apartment.set_movable_visible(id, true)
+	apartment.set_tv(true)
+	var fwd := -player.global_transform.basis.z
+	stranger.place(player.global_position + fwd * 2.6)
+	stranger.set_process(false)
+	for i in 4:
+		await get_tree().process_frame
+	stranger.vanish()
+	stranger.set_process(true)
+	apartment.viewer = old_viewer
 
 
 func _apply_environment(data: Dictionary) -> void:
@@ -548,8 +575,7 @@ func start_ring() -> void:
 func stop_ring() -> void:
 	ringing = false
 	if _ring_player and is_instance_valid(_ring_player):
-		_ring_player.stop()
-		_ring_player.queue_free()
+		Sfx.fade_stop(_ring_player, 0.3)
 	_ring_player = null
 
 
@@ -607,17 +633,18 @@ func _vm_data(name: String) -> Dictionary:
 ## a call is picked up live: Martin answers, flat and late, and Jack's lines carry on around him.
 ## `count_task`: a phone task waiting on it is advanced.
 func _play_vm(name: String, count_task: bool) -> void:
-	busy = true
+	_in_call = true                                       # he can still walk about; the voice comes from the phone, so it fades as he leaves
 	var info := _vm_data(name)
 	var is_call: bool = info.get("call", false)
-	Sfx.play("handset", -3.0)
-	await get_tree().create_timer(0.6).timeout
+	var pos: Vector3 = apartment.pois.get("phone", Vector3(-6.0, 0.0, -4.9)) + Vector3(0, 0.8, 0)
+	Sfx.play_at("handset", pos, -12.0, 8.0, 2.0)
+	await get_tree().create_timer(0.7).timeout
 	if not is_call:
-		Sfx.play("machine_new", -2.0)
+		Sfx.play_at("machine_new", pos, -4.0, 12.0, 2.0)
 		await get_tree().create_timer(Audio.length("machine_new") + 0.3).timeout
-		Sfx.play("machine_beep", -6.0)
+		Sfx.play_at("machine_beep", pos, -9.0, 12.0, 2.0)
 		await get_tree().create_timer(0.7).timeout
-	Sfx.play(name, 0.0)
+	Sfx.play_at(name, pos, 2.0, 12.0, 2.0)
 	var t0 := 0.0
 	for line in info["lines"]:
 		var wait_s: float = float(line["t"]) - t0
@@ -631,17 +658,17 @@ func _play_vm(name: String, count_task: bool) -> void:
 	var rest: float = float(info["duration"]) - t0
 	await get_tree().create_timer(maxf(rest, 0.2) + 0.4).timeout
 	if is_call:
-		Sfx.play("handset", -3.0)
-		await get_tree().create_timer(0.8).timeout
+		Sfx.play_at("handset", pos, -12.0, 8.0, 2.0)
+		await get_tree().create_timer(0.6).timeout
 	else:
-		Sfx.play("machine_end", -3.0)
+		Sfx.play_at("machine_end", pos, -5.0, 12.0, 2.0)
 		await get_tree().create_timer(Audio.length("machine_end") + 0.4).timeout
 	GameState.pending.erase(name)
 	if not (name in GameState.heard):
 		GameState.heard.append(name)
 	GameState.set_flag("heard_" + name)
 	boost_fear(0.25)
-	busy = false
+	_in_call = false
 	if count_task:
 		var data := Days.get_day(GameState.day)
 		_advance_task("phone", data)
@@ -650,25 +677,26 @@ func _play_vm(name: String, count_task: bool) -> void:
 
 ## Day 10: Martin phones his brother and gets the voicemail greeting. He says nothing.
 func _call_jack(_data: Dictionary) -> void:
-	busy = true
-	Sfx.play("handset", -3.0)
+	_in_call = true
+	var pos: Vector3 = apartment.pois.get("phone", Vector3(-6.0, 0.0, -4.9)) + Vector3(0, 0.8, 0)
+	Sfx.play_at("handset", pos, -12.0, 8.0, 2.0)
 	await get_tree().create_timer(1.0).timeout
 	for i in 4:
-		Sfx.play("click", -8.0)
+		Sfx.play_at("click", pos, -10.0, 8.0, 2.0)
 		await get_tree().create_timer(0.25).timeout
 	await get_tree().create_timer(1.2).timeout
 	var info := _vm_data("jack_greeting")
-	Sfx.play("jack_greeting", 0.0)
+	Sfx.play_at("jack_greeting", pos, 2.0, 12.0, 2.0)
 	for line in info["lines"]:
 		await get_tree().create_timer(float(line["t"])).timeout
 		hud.caption("JACK:  " + str(line["text"]), float(line["d"]) + 0.3)
 	await get_tree().create_timer(float(info["duration"]) - float(info["lines"][0]["t"]) + 0.2).timeout
-	Sfx.play("machine_beep", -6.0)
+	Sfx.play_at("machine_beep", pos, -9.0, 12.0, 2.0)
 	await get_tree().create_timer(1.0).timeout
-	Sfx.play("breath", -4.0)
+	Sfx.play_at("breath", pos, -4.0, 8.0, 1.5)
 	await get_tree().create_timer(3.2).timeout
-	Sfx.play("handset", -3.0)
-	busy = false
+	Sfx.play_at("handset", pos, -12.0, 8.0, 2.0)
+	_in_call = false
 	var data := Days.get_day(GameState.day)
 	_advance_task("phone", data)
 

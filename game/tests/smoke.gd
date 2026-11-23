@@ -181,6 +181,7 @@ func _run() -> void:
 	viewer.queue_free()
 
 	await _walk_openings(flat)
+	await _comfort(flat)
 	await _reachability(flat)
 	await _use_points_work(flat)
 	await _furniture_checks(flat)
@@ -266,6 +267,64 @@ func _walk(player, dir: Vector2, seconds: float) -> void:
 ## Floods the floor with a slightly fat player capsule from the spawn point, with every door open.
 ## Everything must be connected (no pocket you can see but never reach), every prop the game uses
 ## must be within reach of a reachable spot, and each room must be mostly walkable.
+## The main routes are comfortable, not just possible: a 0.34 m radius body (68 cm wide) reaches every room and every use point.
+func _comfort(flat) -> void:
+	for d in flat.doors:
+		flat.doors[d].set_open(true, false)
+	await physics_frame
+	await physics_frame
+	var space := root.get_world_3d().direct_space_state
+	var cap := CapsuleShape3D.new()
+	cap.radius = 0.34
+	cap.height = 1.7
+	var q := PhysicsShapeQueryParameters3D.new()
+	q.shape = cap
+	q.collision_mask = 1
+	var f: Array = flat.footprint()
+	var step := 0.2
+	var nx := int((f[1] - f[0]) / step) + 1
+	var nz := int((f[3] - f[2]) / step) + 1
+	var free := {}
+	for ix in nx:
+		for iz in nz:
+			var p := Vector3(f[0] + ix * step, 0.0, f[2] + iz * step)
+			if flat.cell_at(p) == "":
+				continue
+			q.transform = Transform3D(Basis(), p + Vector3(0, 0.95, 0))
+			if space.intersect_shape(q, 1).is_empty():
+				free[Vector2i(ix, iz)] = p
+	var start := Vector2i(int(round((flat.spawn_point().x - f[0]) / step)), int(round((flat.spawn_point().z - f[2]) / step)))
+	var seen := {start: true}
+	var queue := [start]
+	while not queue.is_empty():
+		var cur: Vector2i = queue.pop_back()
+		for dv in [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)]:
+			var nb: Vector2i = cur + dv
+			if free.has(nb) and not seen.has(nb):
+				seen[nb] = true
+				queue.append(nb)
+	var rooms := {}
+	for k in free:
+		var c: String = flat.cell_at(free[k])
+		rooms[c] = rooms.get(c, 0) + 1
+	var reached := {}
+	for k in seen:
+		var c: String = flat.cell_at(free[k])
+		reached[c] = reached.get(c, 0) + 1
+	for c in rooms:
+		_check(reached.get(c, 0) >= int(float(rooms[c]) * 0.9), "comfort: %s is open to a normal-sized body (%d of %d cells)" % [c, reached.get(c, 0), rooms[c]])
+	for id in flat.use_points:
+		var it = flat.use_points[id]
+		var near_ok := false
+		for k in seen:
+			if Vector2(free[k].x - it.global_position.x, free[k].z - it.global_position.z).length() < 1.6:
+				near_ok = true
+				break
+		_check(near_ok, "comfort: '%s' is within reach of a normal-sized body" % id)
+	for d in flat.doors:
+		flat.doors[d].set_open(false, false)
+
+
 func _reachability(flat) -> void:
 	flat.set_day_state(Days.ANOMALY.keys(), ["hall"], true)           # the worst case: every anomaly at once, every door open
 	for d in flat.doors:
@@ -584,6 +643,24 @@ func _furniture_checks(flat) -> void:
 			if inter.size.x > 0.12 and inter.size.z > 0.12 and inter.size.y > 0.15:
 				clashes.append("(%.1f, %.1f) %s / %s" % [inter.get_center().x, inter.get_center().z, a.size, b.size])
 	_check(clashes.is_empty(), "solid furniture does not sink into other furniture %s" % [clashes])
+	# Nothing tall stands in a window
+	var in_windows: Array = []
+	for o in Apartment.OPENINGS:
+		if o["kind"] != "window":
+			continue
+		var c: float = o["c"]
+		var hw: float = float(o["w"]) * 0.5
+		var lo := Vector3(o["fixed"] - 0.45, o["sill"], c - hw) if o["axis"] == "x" else Vector3(c - hw, o["sill"], o["fixed"] - 0.45)
+		var size := Vector3(0.9, o["top"] - o["sill"], hw * 2.0) if o["axis"] == "x" else Vector3(hw * 2.0, o["top"] - o["sill"], 0.9)
+		var vol := AABB(lo, size)
+		for b in boxes:
+			if (b as AABB).intersects(vol):
+				in_windows.append("a solid box at %s is in the window at %.1f,%.1f" % [(b as AABB).get_center(), o["fixed"], c])
+		for m in flat.placed_models:
+			var bb: AABB = m["aabb"]
+			if bb.size.y > 0.5 and not (m["name"] in ["curtain", "radiator"]) and not (m["name"] as String).begins_with("cab_") and bb.intersects(vol):
+				in_windows.append("%s is in the window at %.1f,%.1f" % [m["name"], o["fixed"], c])
+	_check(in_windows.is_empty(), "no furniture stands in a window %s" % [in_windows])
 
 
 ## Every prop the game uses can really be used: from somewhere the player can stand, looking at it, the
@@ -628,6 +705,25 @@ func _use_points_work(flat) -> void:
 			if found:
 				break
 		_check(found, "'%s' can be used from a spot the player can stand on" % id)
+	# Nothing can be used through a wall: standing on the far side of each light switch, looking at it
+	for sw in Apartment.SWITCHES:
+		var facing: Vector3 = sw[3]
+		var plate := Vector3(sw[1], 1.25, sw[2])
+		var behind := plate - facing * 0.75
+		behind.y = 0.05
+		if flat.cell_at(behind) == "" or flat.cell_at(behind) == sw[0]:
+			continue
+		q.transform = Transform3D(Basis(), behind + Vector3(0, 0.9, 0))
+		if not space.intersect_shape(q, 1).is_empty():
+			continue
+		player.position = behind
+		var dd := plate - Vector3(behind.x, 1.6, behind.z)
+		player.rotation.y = atan2(-dd.x, -dd.z)
+		player.set_pitch(atan2(dd.y, Vector2(dd.x, dd.z).length()))
+		await physics_frame
+		await physics_frame
+		var tt = player.target()
+		_check(tt == null or tt.prompt != "Light switch", "the %s light switch cannot be used from the other side of its wall" % sw[0])
 	player.queue_free()
 	for d in flat.doors:
 		flat.doors[d].set_open(false, false)
@@ -739,7 +835,7 @@ func _pacing() -> void:
 	_check(fresh.fx == 2 and fresh.render_height == 360 and fresh.shadows == 2, "default settings: pixel filter MID, 360p, shadows on all")
 	fresh.free()
 	_check(story._announced == "" and hud.objective_text() == "", "day 1 starts with no objective: time to look around")
-	_check(story._task_timer > 20.0, "day 1 waits %.0f s before Martin thinks about the first task" % story._task_timer)
+	_check(story._task_timer > 6.0, "day 1 waits %.0f s before Martin thinks about the first task" % story._task_timer)
 	story.on_used("fridge")                             # something that is not the objective yet
 	await process_frame
 	_check(not gs.is_done("rules"), "nothing counts before the task is announced")
@@ -750,7 +846,7 @@ func _pacing() -> void:
 	_check(gs.step_index.get("read_letter", 0) == 0 and not gs.is_done("read_letter"), "only the current task accepts steps")
 	await _bot_use(story, hud, "fridge")
 	_check(gs.is_done("rules"), "Dr. Hale's sheet is read")
-	_check(hud.objective_text() == "" and story._task_timer > 20.0, "a quiet stretch follows a task (%.0f s)" % story._task_timer)
+	_check(hud.objective_text() == "" and story._task_timer > 9.0, "a quiet stretch follows a task (%.0f s)" % story._task_timer)
 	var listed: Array = story._task_list(Days.get_day(1))
 	_check(listed.size() == 2, "Martin's list shows what is done and what is next, not the whole day (%d lines)" % listed.size())
 	await _wait_announce(story, "read_letter")

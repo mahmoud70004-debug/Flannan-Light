@@ -40,13 +40,13 @@ func _ready() -> void:
 
 	camera = Camera3D.new()
 	camera.fov = 60.0
-	camera.near = 0.05
+	camera.near = 0.12                       # a longer near plane keeps depth precision for the walls on phones
 	camera.far = 60.0
 	head.add_child(camera)
 
 	_ray = RayCast3D.new()
 	_ray.target_position = Vector3(0, 0, -REACH)
-	_ray.collision_mask = INTERACT_LAYER
+	_ray.collision_mask = INTERACT_LAYER | 1                 # walls and furniture block the ray: nothing can be used through a wall
 	camera.add_child(_ray)
 
 

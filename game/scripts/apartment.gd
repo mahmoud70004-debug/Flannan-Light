@@ -56,12 +56,11 @@ const OPENINGS := [
 	# Windows: sill and top heights, curtains optional.
 	{"kind": "window", "axis": "x", "fixed": 5.0, "c": -5.6, "w": 1.8, "sill": 0.9, "top": 2.05, "cur": true},
 	{"kind": "window", "axis": "x", "fixed": 5.0, "c": -8.4, "w": 1.2, "sill": 0.9, "top": 2.05, "cur": true},
-	{"kind": "window", "axis": "z", "fixed": -9.6, "c": 1.0, "w": 1.4, "sill": 0.9, "top": 2.05, "cur": true},
 	{"kind": "window", "axis": "z", "fixed": -9.6, "c": 3.4, "w": 1.4, "sill": 0.9, "top": 2.05, "cur": true},
-	{"kind": "window", "axis": "x", "fixed": 5.0, "c": -1.1, "w": 1.0, "sill": 0.95, "top": 2.05, "cur": false},
+	{"kind": "window", "axis": "x", "fixed": 5.0, "c": -1.5, "w": 0.9, "sill": 0.95, "top": 2.05, "cur": false},
 	{"kind": "window", "axis": "z", "fixed": 0.0, "c": 3.0, "w": 1.2, "sill": 1.0, "top": 2.05, "cur": false},
-	{"kind": "window", "axis": "z", "fixed": -9.6, "c": -4.85, "w": 1.0, "sill": 1.0, "top": 2.0, "cur": true},
-	{"kind": "window", "axis": "z", "fixed": -9.6, "c": -2.2, "w": 1.0, "sill": 1.0, "top": 2.0, "cur": true},
+	{"kind": "window", "axis": "z", "fixed": -9.6, "c": -4.85, "w": 1.0, "sill": 1.3, "top": 2.0, "cur": true},
+	{"kind": "window", "axis": "z", "fixed": -9.6, "c": -2.2, "w": 1.0, "sill": 1.3, "top": 2.0, "cur": true},
 	{"kind": "window", "axis": "x", "fixed": -6.4, "c": -2.9, "w": 0.6, "sill": 1.5, "top": 2.05, "cur": false},
 	{"kind": "window", "axis": "z", "fixed": -1.6, "c": -2.4, "w": 0.7, "sill": 1.4, "top": 2.0, "cur": false},
 	{"kind": "window", "axis": "x", "fixed": -6.4, "c": -4.9, "w": 0.8, "sill": 1.0, "top": 2.0, "cur": false},
@@ -352,8 +351,8 @@ func _wall_side_dressing(axis: String, fixed: float, t: float, a0: float, a1: fl
 		box(c, size, ["trim", layer], {}, false)
 	# Dark gradient where the wall meets the floor and the ceiling (cheap ambient occlusion).
 	for s in segs:
-		quad(_wp(axis, fixed, (s[0] + s[1]) * 0.5, 0.28, off + side * 0.003), n, Vector3.UP, s[1] - s[0], 0.56, "_ao", layer)
-	quad(_wp(axis, fixed, (a0 + a1) * 0.5, H - 0.18, off + side * 0.003), n, Vector3.UP, a1 - a0, 0.36, "_ao", layer, true)
+		quad(_wp(axis, fixed, (s[0] + s[1]) * 0.5, 0.28, off + side * 0.012), n, Vector3.UP, s[1] - s[0], 0.56, "_ao", layer)
+	quad(_wp(axis, fixed, (a0 + a1) * 0.5, H - 0.18, off + side * 0.012), n, Vector3.UP, a1 - a0, 0.36, "_ao", layer, true)
 
 
 func _casing(o: Dictionary, axis: String, fixed: float, t: float, neg: String, pos: String) -> void:
@@ -908,12 +907,13 @@ func place_model(model_name: String, cell: String, pos: Vector3, yaw := 0.0, ext
 ## A soft dark blotch (water stain, grime) lying on a wall, ceiling or floor.
 func stain(cell: String, center: Vector3, normal: Vector3, size: float, aspect := 1.0) -> void:
 	var up := Vector3.UP if absf(normal.y) < 0.9 else Vector3.RIGHT
-	quad(center, normal, up, size, size * aspect, "_stain", layer_of(cell))
+	# Lifted off the surface: a quad lying exactly on a wall z-fights with it, which shimmers when you walk or look
+	quad(center + normal * 0.014, normal, up, size, size * aspect, "_stain", layer_of(cell))
 
 
 ## A soft shadow under a piece of furniture (fake occlusion).
 func blob_shadow(cell: String, center: Vector3, w: float, d: float) -> void:
-	quad(Vector3(center.x, 0.004, center.z), Vector3.UP, Vector3.BACK, w, d, "_stain", layer_of(cell))
+	quad(Vector3(center.x, 0.009, center.z), Vector3.UP, Vector3.BACK, w, d, "_stain", layer_of(cell))
 
 
 # --- things the story moves, a TV that wakes up, the epilogue ------------------------------------

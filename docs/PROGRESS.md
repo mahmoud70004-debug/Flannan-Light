@@ -49,3 +49,13 @@ gets a merge when the user asks. Jack's voice: `am_onyx` (kokoro-onnx), more pau
 - **Rules:** Dr. Hale's five rules (chain, door, hall light, tablets, write things down) are taught on day 1 and broken one by one.
 - **Less noise:** random events are gone, Martin explains almost nothing, the ending never says it was him.
 - Fixes: floor-lamp collider, tests for colliders under large models and for solid furniture sinking into each other, switch glow, objective flow.
+
+## Update: after the second playtest (a list of plain bugs)
+- Wall shimmer: stains, ambient-occlusion quads and blob shadows lay exactly on the surfaces they decorate and z-fought. They are lifted off now, and the camera near plane is 0.12.
+- Floor lamp moved to the corner by the TV and desk (it blocked the way). A "comfort" test floods the flat with a 68 cm wide body: every room and use point must be reachable.
+- Interaction ray is blocked by walls and furniture: nothing can be used through a wall (tested for every light switch).
+- Furniture in windows: the fridge covered the kitchen window (window moved), the TV stood in front of a window (window removed), bed windows raised. A test fails if anything tall stands in a window.
+- Documents and the menu scroll by touch drag (touch is not turned into mouse input, so the scroll containers never saw it).
+- Objective: top centre, appears ~9 s into day 1 (6 s later), gaps between tasks 16 s down to 10 s.
+- Footsteps: soft and low. Phone: the voice comes from the handset (fades as he walks away) and he can walk during a call; handset click softer; the ring fades out.
+- Start-up stalls: audio and every shader/light/object is warmed behind the first black card.

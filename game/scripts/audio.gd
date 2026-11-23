@@ -25,3 +25,16 @@ static func stream(name: String) -> AudioStream:
 static func length(name: String) -> float:
 	var s := stream(name)
 	return s.get_length() if s else 0.0
+
+
+## Loads every sound now (call it behind a black screen): the first play of a sound otherwise stalls a frame.
+static func warm() -> void:
+	var dir := DirAccess.open("res://assets/audio")
+	if dir == null:
+		return
+	for f in dir.get_files():
+		var n := f
+		if n.ends_with(".import"):
+			n = n.trim_suffix(".import")
+		if n.ends_with(".ogg"):
+			stream(n.trim_suffix(".ogg"))

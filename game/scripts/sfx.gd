@@ -77,6 +77,15 @@ func loop_at(sound: String, pos: Vector3, volume_db := 0.0, max_dist := 10.0, un
 	return p
 
 
+## Fades a playing sound out and releases it (a cut-off loop makes an audible click).
+func fade_stop(p: Node, seconds := 0.35) -> void:
+	if p == null or not is_instance_valid(p):
+		return
+	var tw := create_tween()
+	tw.tween_property(p, "volume_db", -60.0, seconds)
+	tw.tween_callback(func() -> void: stop(p))
+
+
 func stop(p: Node) -> void:
 	if p and is_instance_valid(p):
 		(p as Object).call("stop")

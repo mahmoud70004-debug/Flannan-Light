@@ -32,6 +32,7 @@ var _doc: Control
 var _doc_title: Label
 var _doc_body: Label
 var _doc_scroll: ScrollContainer
+var _menu_scroll: ScrollContainer
 var _fade: ColorRect
 var _flash: ColorRect
 var _card: Control
@@ -184,18 +185,43 @@ func caption(text: String, seconds: float) -> void:
 
 # --- task note ------------------------------------------------------------------------------------
 
+## Touch dragging scrolls the document and the pause menu (touch is not turned into mouse input in this project,
+## so the scroll containers never see it). A mouse drag does the same on a desktop.
+func _input(event: InputEvent) -> void:
+	if not (doc_open or menu_open):
+		return
+	var sc: ScrollContainer = _doc_scroll if doc_open else _menu_scroll
+	if sc == null:
+		return
+	if event is InputEventScreenDrag:
+		sc.scroll_vertical -= int((event as InputEventScreenDrag).relative.y)
+		get_viewport().set_input_as_handled()
+	elif event is InputEventMouseMotion and ((event as InputEventMouseMotion).button_mask & MOUSE_BUTTON_MASK_LEFT) != 0:
+		sc.scroll_vertical -= int((event as InputEventMouseMotion).relative.y)
+	elif event is InputEventMouseButton and (event as InputEventMouseButton).pressed:
+		var mb := event as InputEventMouseButton
+		if mb.button_index == MOUSE_BUTTON_WHEEL_UP:
+			sc.scroll_vertical -= 60
+		elif mb.button_index == MOUSE_BUTTON_WHEEL_DOWN:
+			sc.scroll_vertical += 60
+
+
 func _build_objective() -> void:
 	_objective = VBoxContainer.new()
-	_objective.position = Vector2(26, 18)
-	_objective.custom_minimum_size = Vector2(620, 0)
+	_objective.set_anchors_and_offsets_preset(Control.PRESET_CENTER_TOP)       # top centre: clear of the debug text on the left and the buttons on the right
+	_objective.offset_left = -270
+	_objective.offset_right = 270
+	_objective.offset_top = 14
 	_objective.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var head := _make_label(17, Vector2.ZERO)
 	head.text = "OBJECTIVE"
-	head.add_theme_color_override("font_color", Color(0.72, 0.62, 0.45))
-	_obj_text = _make_label(27, Vector2.ZERO)
-	_obj_text.add_theme_color_override("font_color", Color(0.95, 0.93, 0.86))
+	head.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	head.add_theme_color_override("font_color", Color(0.78, 0.66, 0.45))
+	_obj_text = _make_label(28, Vector2.ZERO)
+	_obj_text.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_obj_text.add_theme_color_override("font_color", Color(0.97, 0.95, 0.88))
 	_obj_text.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	_obj_text.custom_minimum_size = Vector2(620, 0)
+	_obj_text.custom_minimum_size = Vector2(540, 0)
 	_objective.add_child(head)
 	_objective.add_child(_obj_text)
 	_objective.modulate.a = 0.0
@@ -414,6 +440,7 @@ func _build_menu() -> void:
 	scroll.offset_bottom = 330
 	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	_menu.add_child(scroll)
+	_menu_scroll = scroll
 	var box := VBoxContainer.new()
 	box.name = "Box"
 	box.custom_minimum_size = Vector2(640, 0)

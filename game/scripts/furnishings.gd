@@ -313,7 +313,7 @@ static func _living(a: Apartment) -> void:
 	a.use_point("dining_food", "Look at the table", Vector3(0.6, 0.5, 1.6), Vector3(3.7, 0.9, -5.5))
 	a.add_flies(c, Vector3(3.9, 1.0, -5.5), 22, 0.4)
 	a.add_flies(c, Vector3(1.2, 0.8, -7.4), 8, 0.22)
-	_floor_lamp(a, c, Vector3(2.4, 0, -6.9))
+	_floor_lamp(a, c, Vector3(2.25, 0, -9.2))                                                          # in the corner pocket between the TV stand and the desk, out of the way
 	_picture(a, c, Vector3(4.89, 1.7, -3.7), Vector3(-1, 0, 0), 0.5, 0.4, "paper")
 	_p(a, c, Vector3(0.45, 0.5, -9.22), Vector3(0.18, 0.22, 0.03), "dark_wood", 0.0, false)          # the framed photo of Mom and Dad
 	_p(a, c, Vector3(0.45, 0.5, -9.2), Vector3(0.14, 0.18, 0.034), "paper", 0.0, false)
