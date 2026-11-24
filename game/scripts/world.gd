@@ -1,84 +1,41 @@
 extends Node
-## The game world: Martin's flat, the first-person player, the story and the horror director, and the
-## render pipeline (3D at a chosen height -> film shader -> screen). Debug aids for look-dev and
-## tests: add ?spawn=<spot>&day=<n>&res=<height>&grade=<n>&shadows=<n>&fx=<0-4>&fear=<0-1> to the
-## web URL, or pass `-- --spawn=<spot> --day=3` to the Godot command line. A spawn skips the story
-## and shows the flat as it is on that day; `spawn=plan` is a top-down view with the ceilings hidden.
+## Phase 0 test island: a grey-box yard with a lighthouse beam, one switch,
+## and the full render pipeline (low-res 3D -> dither shader -> screen).
 
-const SHADER := preload("res://shaders/film_post.gdshader")
-const TITLE := "res://scenes/title.tscn"
+const SHADER := preload("res://shaders/dither_palette.gdshader")
 
 var _view: SubViewport
-var _root3d: Node3D
 var _post_mat: ShaderMaterial
 var _player: Player
 var _controls: TouchControls
 var _hud: Hud
-var _apartment: Apartment
+var _lighthouse: Lighthouse
+var _safe := Vector3.ZERO
+var _island: Island
 var _env: Environment
-var _stranger: Stranger
-var _director: Director
-var _story: Story
-var _ambience: Ambience
-var _overrides := {}
-var _debug_scene := false
-var _t := 0.0
-var _blink := 0.0
-var _next_blink := 25.0
-var _auto_h := 540                ## the picture height AUTO is using now
-var _auto_t := 0.0
-var _auto_slow := 0
+var _sun: DirectionalLight3D
+var _time := "day"
+var _vignette := 0.3
+var _spawn := Vector3.ZERO
 
 
 func _ready() -> void:
-	_read_overrides()
-	_debug_scene = _overrides.has("spawn")
-	if _overrides.has("day"):
-		GameState.day = clampi(int(_overrides["day"]), 1, Days.COUNT)
 	_build_view()
 	_build_world()
 	_build_ui()
 	_apply_settings()
 	get_viewport().size_changed.connect(_apply_settings)
 	Settings.changed.connect(_apply_settings)
-	_hud.set_fade(0.0 if _debug_scene else 1.0)
-	if _debug_scene:
-		_story.show_debug_day()
-		_story.debug_show(str(_overrides.get("show", "")))
-		return
-	_story.start_day()
-
-
-## Debug arguments from the URL (web) or command line (desktop).
-func _read_overrides() -> void:
-	if OS.has_feature("web"):
-		for key in ["spawn", "show", "day", "res", "grade", "shadows", "msaa", "fx", "fear"]:
-			var v := str(JavaScriptBridge.eval("new URLSearchParams(location.search).get('%s') || ''" % key))
-			if v != "":
-				_overrides[key] = v
-	var injected: Dictionary = Engine.get_meta("overrides", {})        # tests pass their own
-	for k in injected:
-		_overrides[k] = str(injected[k])
-	for a in OS.get_cmdline_user_args():
-		var kv := (a as String).trim_prefix("--").split("=")
-		if kv.size() == 2:
-			_overrides[kv[0]] = kv[1]
-
-
-func _opt(key: String, stored: int) -> int:
-	return int(_overrides[key]) if _overrides.has(key) else stored
 
 
 # --- render pipeline --------------------------------------------------------
 
 func _build_view() -> void:
 	_view = SubViewport.new()
-	_view.audio_listener_enable_3d = true                  # positional sounds are heard from the player's camera
+	_view.msaa_3d = Viewport.MSAA_DISABLED
 	_view.screen_space_aa = Viewport.SCREEN_SPACE_AA_DISABLED
 	_view.render_target_update_mode = SubViewport.UPDATE_ALWAYS
 	add_child(_view)
-	_root3d = Node3D.new()
-	_view.add_child(_root3d)
 
 	var layer := CanvasLayer.new()
 	layer.layer = 1
@@ -88,7 +45,7 @@ func _build_view() -> void:
 	rect.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	rect.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	rect.stretch_mode = TextureRect.STRETCH_SCALE
-	rect.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
+	rect.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_post_mat = ShaderMaterial.new()
 	_post_mat.shader = SHADER
@@ -98,95 +55,102 @@ func _build_view() -> void:
 
 func _apply_settings() -> void:
 	var vr := get_viewport().get_visible_rect().size
-	var h := _opt("res", Settings.render_height)
-	if h == 0:
-		h = _auto_h
+	var h: int = Settings.render_height
 	_view.size = Vector2i(maxi(int(round(h * vr.x / maxf(vr.y, 1.0))), 16), h)
-	var aa := _opt("msaa", Settings.msaa)
-	_view.msaa_3d = [Viewport.MSAA_DISABLED, Viewport.MSAA_2X, Viewport.MSAA_4X][aa]
-	var shadows := _opt("shadows", Settings.shadows)
-	if _apartment:
-		_apartment.apply_shadows(shadows)
-	Sfx.set_volume(Settings.volume)
-	_apply_film()
+	Palettes.apply(_post_mat, Settings.palette)
+	_post_mat.set_shader_parameter("brightness", Settings.brightness)
+	_post_mat.set_shader_parameter("dither_amount", Settings.dither_amount)
+	_post_mat.set_shader_parameter("dither_cell", Settings.dither_cell)
+	_post_mat.set_shader_parameter("contrast", Settings.contrast)
+	_post_mat.set_shader_parameter("vignette", _vignette)
+	_post_mat.set_shader_parameter("mode", Settings.look_mode)
+	_post_mat.set_shader_parameter("edge_strength", 0.10 if Settings.look_mode == 1 else 0.8)
+	if _lighthouse:
+		_lighthouse.apply_shadows(Settings.shadows)
+	if _sun:
+		_sun.shadow_enabled = Settings.shadows >= 1
+		_sun.directional_shadow_mode = DirectionalLight3D.SHADOW_ORTHOGONAL
+		_sun.directional_shadow_max_distance = 80.0
+		_sun.shadow_bias = 0.08
+		_sun.shadow_normal_bias = 1.2
 	if _hud:
-		var grade := _opt("grade", Settings.grade)
-		_hud.set_info("%s · FX %s · %dp · MSAA %s · shadows %s · day %d · %s" % [Film.grade_name(grade), Film.fx_name(_opt("fx", Settings.fx)), h, ["off", "2x", "4x"][aa], ["off", "hall", "all"][shadows], GameState.day, BuildInfo.label()])
-
-
-func _apply_film() -> void:
-	var fear := float(_overrides["fear"]) if _overrides.has("fear") else (_story.fear if _story else 0.0)
-	var amount := Film.fx_amount(_opt("fx", Settings.fx), fear)
-	Film.apply(_post_mat, _opt("grade", Settings.grade), Settings.brightness, amount)
+		_hud.set_info("%s %s · %s · %dp · shadows %s · %s" % [["CRUNCH", "PHOTO"][Settings.look_mode], Palettes.preset_name(Settings.palette), _time, h, ["off", "sun+window", "sun+window+lantern"][Settings.shadows], BuildInfo.label()])
 
 
 # --- 3D world ---------------------------------------------------------------
 
 func _build_world() -> void:
 	_env = Environment.new()
-	_env.background_mode = Environment.BG_COLOR
-	_env.background_color = Color.BLACK
-	_env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
-	_env.ambient_light_color = Color(0.20, 0.21, 0.24)
-	_env.ambient_light_energy = 0.9
-	_env.tonemap_mode = Environment.TONE_MAPPER_FILMIC
-	_env.tonemap_exposure = 1.0
-	_env.fog_enabled = true
-	_env.fog_light_color = Color(0.07, 0.075, 0.085)
-	_env.fog_density = 0.035
 	var world_env := WorldEnvironment.new()
 	world_env.environment = _env
-	_root3d.add_child(world_env)
+	_view.add_child(world_env)
 
-	_apartment = Apartment.new()
-	_root3d.add_child(_apartment)
+	_island = Island.new()
+	_view.add_child(_island)
+
+	# Sun / moon lights the outdoors (visual layer 1) only; the store room has its own lights.
+	_sun = DirectionalLight3D.new()
+	_sun.light_cull_mask = 1
+	_view.add_child(_sun)
+
+	_lighthouse = Lighthouse.new()
+	_lighthouse.position = _island.lighthouse_position()
+	_view.add_child(_lighthouse)
+
+	_time = "day"
+	if OS.has_feature("web"):
+		var t := str(JavaScriptBridge.eval("new URLSearchParams(location.search).get('time') || ''"))
+		if Atmosphere.NAMES.has(t):
+			_time = t
+	_vignette = Atmosphere.apply(_time, _env, _sun, _island, _lighthouse)
 
 	_player = Player.new()
-	_root3d.add_child(_player)
-	_apartment.viewer = _player
-	_player.position = _apartment.spawn_point()
-	_player.rotation.y = _apartment.spawn_yaw()
+	_spawn = _island.spawn_point()
+	_view.add_child(_player)
+	_player.position = _spawn
+	_player.rotation.y = _island.spawn_yaw()        # facing the island
+	_safe = _spawn
+	_debug_spawn()
 
-	_stranger = Stranger.new()
-	_stranger.player = _player
-	_stranger.apartment = _apartment
-	_root3d.add_child(_stranger)
 
-	Sfx.world = _root3d
-	_ambience = Ambience.new()
-	add_child(_ambience)
-	_ambience.setup(_apartment)
-
-	_director = Director.new()
-	_director.apartment = _apartment
-	_director.player = _player
-	_director.stranger = _stranger
-	add_child(_director)
-
-	_story = Story.new()
-	_story.apartment = _apartment
-	_story.player = _player
-	_story.stranger = _stranger
-	_story.director = _director
-	_story.ambience = _ambience
-	add_child(_story)
-	_director.story = _story
-
-	var spot := str(_overrides.get("spawn", ""))
-	var spots := _apartment.debug_spots()
-	if spots.has(spot):
-		_player.position = spots[spot][0]
-		_player.rotation.y = spots[spot][1]
-		_player.set_pitch(spots[spot][2])
-	elif spot == "plan":
-		var f := _apartment.footprint()
-		_player.position = Vector3((f[0] + f[1]) * 0.5, 15.0, (f[2] + f[3]) * 0.5)
-		_player.rotation.y = 0.0
-		_player.set_pitch(-PI / 2.0)
-		_player.set_physics_process(false)
-		_apartment.set_ceilings_visible(false)
-		_apartment.show_everything()
-		_env.fog_enabled = false
+## Web debug aid: add ?spawn=gate|door|inside|stairs|store|far|sky to the URL.
+func _debug_spawn() -> void:
+	if not OS.has_feature("web"):
+		return
+	var where := str(JavaScriptBridge.eval("new URLSearchParams(location.search).get('spawn') || ''"))
+	var lh := _lighthouse.position
+	match where:
+		"gate":
+			var gp := _island.path_points()
+			_player.position = gp[gp.size() - 1] + Vector3(0, 0.2, 3.5)
+			var gd: Vector3 = lh - _player.position
+			_player.rotation.y = atan2(-gd.x, -gd.z)
+		"door":
+			_player.position = lh + Vector3(0, 0.1, 11.2)
+			_player.rotation.y = 0.0
+		"inside":
+			_player.position = lh + Vector3(1.0, 0.2, 7.7)
+			_player.rotation.y = 0.0
+		"stairs":
+			_player.position = lh + Vector3(-4.1, 0.2, 4.0)
+			_player.rotation.y = PI
+		"store":
+			_player.position = lh + Vector3(-4.1, Lighthouse.STORE_FLOOR_Y + 0.1, 10.6)
+			_player.rotation.y = PI
+		"far":
+			var pts := _island.path_points()
+			_player.position = pts[maxi(pts.size() - 6, 0)] + Vector3(0, 0.1, 0)
+			var d := lh - _player.position
+			_player.rotation.y = atan2(-d.x, -d.z)
+		"sky":
+			_player.position = lh + Vector3(40.0, 70.0, 80.0)
+			_player.rotation.y = 0.5
+			_player.look_by(Vector2(0, 700.0), 0.001)
+			_player.set_physics_process(false)
+			_env.fog_enabled = false
+	if where != "":
+		_spawn = _player.position
+		_safe = _spawn
 
 
 # --- UI ----------------------------------------------------------------------
@@ -194,136 +158,33 @@ func _build_world() -> void:
 func _build_ui() -> void:
 	_hud = Hud.new()
 	add_child(_hud)
-	_story.hud = _hud
 	var layer := CanvasLayer.new()
 	layer.layer = 10
-	layer.process_mode = Node.PROCESS_MODE_ALWAYS
 	add_child(layer)
 	_controls = TouchControls.new()
 	layer.add_child(_controls)
-	_story.controls = _controls
-	_controls.look.connect(func(rel: Vector2) -> void:
-		if not get_tree().paused:
-			_player.look_by(rel, Settings.look_sensitivity))
+	_controls.look.connect(func(rel: Vector2) -> void: _player.look_by(rel, Settings.look_sensitivity))
 	_controls.interact_pressed.connect(_on_interact)
-	_controls.menu_pressed.connect(_toggle_menu)
-	_controls.tasks_pressed.connect(func() -> void:
-		if _story.is_free():
-			_story.open_notes())
-	_controls.photo_pressed.connect(_story.take_photo)
-	_apartment.used.connect(_story.on_used)
-	_apartment.said.connect(_hud.say)
-	_stranger.vanished.connect(_director.on_stranger_vanished)
-	_stranger.first_seen.connect(_director.on_first_seen)
-	_stranger.staring.connect(_director.on_staring)
-	_story.finished.connect(_to_title)
-	_hud.doc_closed.connect(func() -> void: pass)
+	_controls.menu_pressed.connect(func() -> void: get_tree().change_scene_to_file("res://scenes/title.tscn"))
+	_controls.filter_pressed.connect(Settings.cycle_palette)
+	_controls.resolution_pressed.connect(Settings.cycle_render_height)
+	_controls.shadows_pressed.connect(Settings.cycle_shadows)
+	_controls.style_pressed.connect(Settings.toggle_look_mode)
 
 
 func _on_interact() -> void:
-	if not _story.is_free() and not _debug_scene:
-		return
 	var t := _player.target()
 	if t:
 		t.call("interact")
 
 
-## AUTO picture height: if the last few seconds ran below ~28 fps, step down; if far above 50, step up.
-func _update_auto_res(delta: float) -> void:
-	if Settings.render_height != 0 or _overrides.has("res"):
-		return
-	_auto_t += delta
-	if _auto_t < 3.0:
-		return
-	_auto_t = 0.0
-	var fps := Engine.get_frames_per_second()
-	var steps := [360, 480, 540, 720]
-	var i := steps.find(_auto_h)
-	if fps < 28.0 and i > 0:
-		_auto_slow += 1
-		if _auto_slow >= 2:
-			_auto_h = steps[i - 1]
-			_auto_slow = 0
-			_apply_settings()
-	elif fps > 52.0 and i < steps.size() - 1:
-		_auto_slow -= 1
-		if _auto_slow <= -4:
-			_auto_h = steps[i + 1]
-			_auto_slow = 0
-			_apply_settings()
-	else:
-		_auto_slow = 0
-
-
-func _toggle_menu() -> void:
-	if _hud.menu_open:
-		_hud.close_menu()
-		get_tree().paused = false
-		return
-	if _hud.card_open or _hud.doc_open:
-		return
-	get_tree().paused = true
-	_open_menu()
-
-
-func _open_menu() -> void:
-	var resume := func() -> void:
-		_hud.close_menu()
-		get_tree().paused = false
-	var rebuild := func(fn: Callable) -> Callable:
-		return func() -> void:
-			fn.call()
-			_open_menu()
-	_hud.open_menu([
-		{"text": "RESUME", "call": resume},
-		{"text": "Look: %s" % Film.grade_name(Settings.grade), "call": rebuild.call(Settings.cycle_grade)},
-		{"text": "Pixel filter: %s" % Film.fx_name(Settings.fx), "call": rebuild.call(Settings.cycle_fx)},
-		{"text": "Picture height: %s" % (("AUTO (%dp)" % _auto_h) if Settings.render_height == 0 else "%dp" % Settings.render_height), "call": rebuild.call(Settings.cycle_render_height)},
-		{"text": "Shadows: %s" % ["off", "hall", "all"][Settings.shadows], "call": rebuild.call(Settings.cycle_shadows)},
-		{"text": "Anti-aliasing: %s" % ["off", "2x", "4x"][Settings.msaa], "call": rebuild.call(Settings.cycle_msaa)},
-		{"text": "Volume: %d%%" % int(round(Settings.volume * 100.0)), "call": rebuild.call(Settings.cycle_volume)},
-		{"text": "Flashing effects: %s" % ("reduced" if Settings.reduce_flash else "full"), "call": rebuild.call(Settings.toggle_reduce_flash)},
-		{"text": "Debug info: %s" % ("on" if Settings.show_debug else "off"), "call": rebuild.call(Settings.toggle_debug)},
-		{"text": "SAVE AND QUIT", "call": func() -> void:
-			GameState.save()
-			_to_title.call()},
-	])
-
-
-func _to_title() -> void:
-	if _overrides.has("no_title"):
-		return
-	get_tree().paused = false
-	Sfx.clear()
-	_ambience.stop_all()
-	get_tree().change_scene_to_file(TITLE)
-
-
 func _process(delta: float) -> void:
-	_controls.blocked = _hud.doc_open or _hud.card_open or _hud.menu_open
-	_controls.lock_move = (_story.busy or _story.locked) and not _debug_scene
 	_player.move_input = _controls.move_vector
 	var t := _player.target()
-	_controls.can_interact = t != null and (_story.is_free() or _debug_scene)
-	_hud.set_prompt(str(t.get("prompt")) if (t and (_story.is_free() or _debug_scene) and not _hud.card_open) else "")
-	if not _debug_scene:
-		_director.update(delta)
-	_ambience.update(delta, _story.fear)
-	_update_auto_res(delta)
-	_t += delta
-	var fear := _story.fear
-	_apartment.update_flicker(fear, _t)
-	_player.shake = maxf(fear - 0.55, 0.0) * 0.012 if _story.is_free() else 0.0
-	# At high fear he blinks too long now and then, and the picture throbs with his pulse
-	_next_blink -= delta
-	if _next_blink <= 0.0 and fear > 0.6 and _story.is_free() and not Settings.reduce_flash:
-		_blink = 0.18
-		_next_blink = randf_range(18.0, 40.0)
-	elif _next_blink <= 0.0:
-		_next_blink = 10.0
-	_blink = maxf(_blink - delta, 0.0)
-	_post_mat.set_shader_parameter("blackout", clampf(_blink / 0.18, 0.0, 1.0) if _blink > 0.0 else 0.0)
-	_post_mat.set_shader_parameter("pulse", 0.0 if Settings.reduce_flash else clampf((fear - 0.5) * 2.0, 0.0, 1.0) * (0.5 + 0.5 * sin(_t * 6.4)))
-	_apply_film()
-	if Settings.reduce_flash:
-		_post_mat.set_shader_parameter("glitch", 0.0)
+	_controls.can_interact = t != null
+	_hud.set_prompt(str(t.get("prompt")) if t else "")
+	if _player.is_on_floor() and _player.position.y > 0.3:
+		_safe = _player.position
+	if _player.position.y < -1.5:                    # fell off the rocks into the sea: back to the last dry spot
+		_player.position = _safe
+		_player.velocity = Vector3.ZERO

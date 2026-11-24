@@ -1,11 +1,10 @@
 extends Control
-## Title screen: Start, picture options, sensitivity, build label.
+## Title screen: Start, look selection, brightness, sensitivity, build label.
 ## The Start press is the user gesture the web build needs for audio,
 ## fullscreen and orientation lock.
 
-const GAME_TITLE := "NO ONE HOME"
-
-var _grade_label: Label
+var _palette_label: Label
+var _swatches: HBoxContainer
 
 
 func _ready() -> void:
@@ -31,72 +30,44 @@ func _ready() -> void:
 	box.add_theme_constant_override("separation", 8)
 	scroll.add_child(box)
 
-	var title := _label(GAME_TITLE, 64, HORIZONTAL_ALIGNMENT_CENTER)
-	box.add_child(title)
-	var flicker := create_tween().set_loops()
-	flicker.tween_interval(3.5)
-	flicker.tween_property(title, "modulate:a", 0.25, 0.05)
-	flicker.tween_property(title, "modulate:a", 1.0, 0.07)
-	flicker.tween_property(title, "modulate:a", 0.5, 0.04)
-	flicker.tween_property(title, "modulate:a", 1.0, 0.2)
+	box.add_child(_label("FLANNAN LIGHT", 58, HORIZONTAL_ALIGNMENT_CENTER))
 	box.add_child(_label("Pottsfield Studio", 22, HORIZONTAL_ALIGNMENT_CENTER, 0.55))
-	box.add_child(_label("A psychological horror · headphones recommended", 22, HORIZONTAL_ALIGNMENT_CENTER, 0.7))
 
-	if GameState.has_save() and not GameState.ended and GameState.load_game():
-		var cont := _button("CONTINUE · DAY %d" % GameState.day)
-		cont.pressed.connect(func() -> void: _go())
-		box.add_child(cont)
-	var start := _button("NEW GAME" if GameState.has_save() else "START")
-	start.pressed.connect(func() -> void:
-		GameState.erase()
-		GameState.new_game()
-		_go())
+	var start := _button("START")
+	start.pressed.connect(_on_start)
 	box.add_child(start)
 
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 12)
 	var prev := _button("<", 90)
-	prev.pressed.connect(func() -> void: _step_grade(-1))
+	prev.pressed.connect(func() -> void: _step_palette(-1))
 	var next := _button(">", 90)
-	next.pressed.connect(func() -> void: _step_grade(1))
-	_grade_label = _label("", 34, HORIZONTAL_ALIGNMENT_CENTER)
-	_grade_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	_grade_label.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	next.pressed.connect(func() -> void: _step_palette(1))
+	_palette_label = _label("", 34, HORIZONTAL_ALIGNMENT_CENTER)
+	_palette_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_palette_label.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	row.add_child(prev)
-	row.add_child(_grade_label)
+	row.add_child(_palette_label)
 	row.add_child(next)
 	box.add_child(row)
 
-	box.add_child(_slider("Brightness", 0.6, 1.8, Settings.brightness, func(v: float) -> void: Settings.brightness = v))
+	_swatches = HBoxContainer.new()
+	_swatches.alignment = BoxContainer.ALIGNMENT_CENTER
+	_swatches.add_theme_constant_override("separation", 0)
+	box.add_child(_swatches)
+
+	box.add_child(_slider("Brightness", 0.5, 2.5, Settings.brightness, func(v: float) -> void: Settings.brightness = v))
+	box.add_child(_slider("Contrast", 0.8, 2.0, Settings.contrast, func(v: float) -> void: Settings.contrast = v))
+	var style := _button("Style: %s" % ["CRUNCH (dither)", "PHOTO (film)"][Settings.look_mode])
+	style.custom_minimum_size = Vector2(0, 56)
+	style.add_theme_font_size_override("font_size", 26)
+	style.pressed.connect(func() -> void:
+		Settings.toggle_look_mode()
+		style.text = "Style: %s" % ["CRUNCH (dither)", "PHOTO (film)"][Settings.look_mode])
+	box.add_child(style)
+	box.add_child(_cell_toggle())
+	box.add_child(_slider("Dither", 0.0, 1.0, Settings.dither_amount, func(v: float) -> void: Settings.dither_amount = v))
 	box.add_child(_slider("Look sensitivity", 0.001, 0.012, Settings.look_sensitivity, func(v: float) -> void: Settings.look_sensitivity = v))
-	var fx := _button("Pixel filter: %s" % Film.fx_name(Settings.fx))
-	fx.custom_minimum_size = Vector2(0, 56)
-	fx.add_theme_font_size_override("font_size", 26)
-	fx.pressed.connect(func() -> void:
-		Settings.cycle_fx()
-		fx.text = "Pixel filter: %s" % Film.fx_name(Settings.fx))
-	box.add_child(fx)
-	var aa := _button("Anti-aliasing: %s" % ["off", "2x", "4x"][Settings.msaa])
-	aa.custom_minimum_size = Vector2(0, 56)
-	aa.add_theme_font_size_override("font_size", 26)
-	aa.pressed.connect(func() -> void:
-		Settings.cycle_msaa()
-		aa.text = "Anti-aliasing: %s" % ["off", "2x", "4x"][Settings.msaa])
-	box.add_child(aa)
-	var vol := _button("Volume: %d%%" % int(round(Settings.volume * 100.0)))
-	vol.custom_minimum_size = Vector2(0, 56)
-	vol.add_theme_font_size_override("font_size", 26)
-	vol.pressed.connect(func() -> void:
-		Settings.cycle_volume()
-		vol.text = "Volume: %d%%" % int(round(Settings.volume * 100.0)))
-	box.add_child(vol)
-	var res := _button("Picture height: %s" % _res_text())
-	res.custom_minimum_size = Vector2(0, 56)
-	res.add_theme_font_size_override("font_size", 26)
-	res.pressed.connect(func() -> void:
-		Settings.cycle_render_height()
-		res.text = "Picture height: %s" % _res_text())
-	box.add_child(res)
 
 	var build := _label(BuildInfo.label(), 20, HORIZONTAL_ALIGNMENT_RIGHT, 0.5)
 	build.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_RIGHT)
@@ -106,19 +77,7 @@ func _ready() -> void:
 	build.offset_bottom = -8
 	add_child(build)
 
-	var credits := _label("Textures: ambientCG (CC0) · Voices: Kokoro (Apache-2.0) · Engine: Godot", 16, HORIZONTAL_ALIGNMENT_LEFT, 0.4)
-	credits.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_LEFT)
-	credits.offset_left = 16
-	credits.offset_top = -30
-	credits.offset_right = 900
-	credits.offset_bottom = -8
-	add_child(credits)
-
-	_refresh_grade()
-
-
-func _res_text() -> String:
-	return "AUTO" if Settings.render_height == 0 else "%dp" % Settings.render_height
+	_refresh_palette()
 
 
 func _label(text: String, font_size: int, align: HorizontalAlignment, alpha := 1.0) -> Label:
@@ -154,17 +113,35 @@ func _slider(title: String, lo: float, hi: float, value: float, setter: Callable
 	return col
 
 
-func _step_grade(dir: int) -> void:
-	Settings.grade = posmod(Settings.grade + dir, Film.GRADES.size())
+func _cell_toggle() -> Control:
+	var b := _button("Dither grain: %s" % ["fine", "chunky", "coarse"][Settings.dither_cell - 1])
+	b.custom_minimum_size = Vector2(0, 56)
+	b.add_theme_font_size_override("font_size", 26)
+	b.pressed.connect(func() -> void:
+		Settings.dither_cell = Settings.dither_cell % 3 + 1
+		Settings.save()
+		b.text = "Dither grain: %s" % ["fine", "chunky", "coarse"][Settings.dither_cell - 1])
+	return b
+
+
+func _step_palette(dir: int) -> void:
+	Settings.palette = posmod(Settings.palette + dir, Palettes.count())
 	Settings.save()
-	_refresh_grade()
+	_refresh_palette()
 
 
-func _refresh_grade() -> void:
-	_grade_label.text = "Look: %s" % Film.grade_name(Settings.grade)
+func _refresh_palette() -> void:
+	_palette_label.text = "Look: %s" % Palettes.preset_name(Settings.palette)
+	for c in _swatches.get_children():
+		c.queue_free()
+	for col: Color in Palettes.colors(Settings.palette):
+		var r := ColorRect.new()
+		r.color = col
+		r.custom_minimum_size = Vector2(70, 26)
+		_swatches.add_child(r)
 
 
-func _go() -> void:
+func _on_start() -> void:
 	if OS.has_feature("web"):
 		DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_FULLSCREEN)
 		JavaScriptBridge.eval("try{screen.orientation.lock('landscape').catch(function(){})}catch(e){}")

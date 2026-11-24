@@ -7,8 +7,10 @@ extends Control
 signal look(relative: Vector2)
 signal interact_pressed
 signal menu_pressed
-signal tasks_pressed
-signal photo_pressed
+signal filter_pressed
+signal resolution_pressed
+signal shadows_pressed
+signal style_pressed
 
 const STICK_RADIUS := 110.0
 const KNOB_RADIUS := 46.0
@@ -18,16 +20,13 @@ const BUTTON_RADIUS := 82.0
 
 var move_vector := Vector2.ZERO
 var can_interact := false
-var blocked := false               ## a document, card or menu is up: ignore every touch
-var lock_move := false             ## the camera may be turned but nothing else (cutscenes)
-var show_photo := false            ## the phone camera button appears from day 4
 
 var _stick_index := -1
 var _look_index := -1
 var _ui_index := -1
 var _stick_base := Vector2.ZERO
 var _stick_knob := Vector2.ZERO
-var _labels := ["MENU", "NOTES", "PHOTO"]
+var _labels := ["MENU", "FILTER", "RES", "SHADOW", "STYLE"]
 var _last_pos := {}                ## finger index -> last absolute position (see _drag)
 var _use_mouse := false
 
@@ -56,11 +55,6 @@ func _reset_stick() -> void:
 
 
 func _input(event: InputEvent) -> void:
-	if blocked:
-		if event is InputEventScreenTouch and not event.pressed:
-			_release(event.index)
-		move_vector = Vector2.ZERO
-		return
 	if event is InputEventScreenTouch:
 		if event.pressed and not event.canceled:
 			_press(event.index, event.position)
@@ -75,38 +69,26 @@ func _input(event: InputEvent) -> void:
 			_release(-10)
 	elif _use_mouse and event is InputEventMouseMotion and (event.button_mask & MOUSE_BUTTON_MASK_LEFT):
 		_drag(-10, event.position)
-	elif event is InputEventKey and event.pressed and not event.echo:
-		match event.keycode:
-			KEY_E:
-				if not lock_move:
-					interact_pressed.emit()
-			KEY_T:
-				tasks_pressed.emit()
-			KEY_P:
-				photo_pressed.emit()
-			KEY_ESCAPE:
-				menu_pressed.emit()
+	elif event is InputEventKey and event.pressed and not event.echo and event.keycode == KEY_E:
+		interact_pressed.emit()
 
 
 func _press(index: int, pos: Vector2) -> void:
 	_last_pos[index] = pos
 	if (pos - _interact_center()).length() <= BUTTON_RADIUS:
 		_ui_index = index
-		if not lock_move:
-			interact_pressed.emit()
+		interact_pressed.emit()
 		return
-	for i in 3:
-		if i == 2 and not show_photo:
-			continue
+	for i in 5:
 		if _top_button_rect(i).has_point(pos):
 			_ui_index = index
 			match i:
 				0: menu_pressed.emit()
-				1: tasks_pressed.emit()
-				2: photo_pressed.emit()
+				1: filter_pressed.emit()
+				2: resolution_pressed.emit()
+				3: shadows_pressed.emit()
+				4: style_pressed.emit()
 			return
-	if lock_move and pos.x < size.x * LEFT_ZONE:
-		return
 	if pos.x < size.x * LEFT_ZONE:
 		if _stick_index == -1:
 			_stick_index = index
@@ -148,10 +130,6 @@ func _release(index: int) -> void:
 
 
 func _process(_delta: float) -> void:
-	if blocked or lock_move:
-		move_vector = Vector2.ZERO
-		queue_redraw()
-		return
 	if _stick_index == -1:
 		var k := Vector2(
 			Input.get_axis("ui_left", "ui_right") + _key_axis(KEY_A, KEY_D),
@@ -165,8 +143,6 @@ func _key_axis(neg: Key, pos: Key) -> float:
 
 
 func _draw() -> void:
-	if blocked:
-		return
 	var line := Color(1, 1, 1, 0.45)
 	var fill := Color(1, 1, 1, 0.12)
 	draw_circle(_stick_base, STICK_RADIUS, fill)
@@ -180,9 +156,7 @@ func _draw() -> void:
 	var font := ThemeDB.fallback_font
 	draw_string(font, c + Vector2(-60, 12), "USE", HORIZONTAL_ALIGNMENT_CENTER, 120, 34, active)
 
-	for i in 3:
-		if i == 2 and not show_photo:
-			continue
+	for i in 5:
 		var r := _top_button_rect(i)
 		draw_rect(r, Color(0, 0, 0, 0.45))
 		draw_rect(r, line, false, 2.0)

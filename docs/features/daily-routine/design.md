@@ -1,34 +1,33 @@
 # Daily routine
 
-**Status:** implemented · **Updated:** 2026-11-21 · [GDD](../../GDD.md)
+**Status:** designed · **Updated:** 2026-11-19 · [GDD](../../GDD.md)
 
-Each day is a short list of ordinary tasks. Events interrupt them; the task list never stops mattering, even on the worst day.
+Each day the player gets a short list of chores in a fixed order of places: clean the lamp room, check the lamp for faults, tidy the store, clean the bedroom, watch the sea, sleep. The chores are short, tactile and identical each day, so the player learns the island by muscle memory. That familiarity is what anomalies later betray (pillar 1).
 
 ## Rules
-1. A day is a `DayData` resource: tasks, events (see [hallucination-director](../hallucination-director/design.md)), documents, phone calls.
-2. Tasks are things Martin would really do: eat, wash, read mail, search for jobs on the laptop, call Jack, sleep. Each is "go to the place and use the object".
-3. The day ends at sleep; the player may sleep once all required tasks are done. The task list shows as Martin's own sticky note (plain text).
-4. Later days drop tasks Martin can no longer face (food, washing); fewer tasks is a story signal, not a punishment.
+1. A day is a `DayData` resource listing its tasks, ship events, anomalies and whether Martin visits.
+2. A task is one interactable object plus a short hold/tap action (wipe lens, trim wick, tighten fitting, stack crate, make bed). No task takes longer than the number in Numbers.
+3. The task list is shown only in the keeper's log book (open from the Interact button on the desk), never as a HUD checklist.
+4. Sleep is unlocked only when all required tasks of the day are done; optional tasks do not block sleep.
+5. Sleeping ends the day, autosaves, applies the next `DayData`, and fades in the new morning.
+6. The lamp must be lit at dusk; a lamp fault found by "check lamp" must be fixed before sleep (simple: one repair interaction).
+7. Fixed route: store (ground) → bedroom → stairs → lamp room → gallery (outside, watch the sea).
 
-## Pacing (v0.5): one thing at a time
-The first build poured tasks, events and scares onto the player in the first minutes. Now:
-1. A day starts with a quiet stretch (40 s on day 1, 22 s after) to look around.
-2. Martin then thinks aloud ("I have to eat something."), and after a beat an **OBJECTIVE** appears top left
-   ("Go to the kitchen"). It follows the step ("Eat on the sofa") and says where to go.
-3. Only the current task accepts steps. The TASKS list shows what is done and what he is on, never what is next.
-4. When the task is done the objective goes and a quiet stretch follows (38 s on day 1, 24 s on day 9) before the next thought.
-5. Scripted moments hang on progress (`after` a task, `when` a task becomes current), never on the clock, so they land in
-   the quiet stretches. Random events start late (170 s on day 1), are at least 55 s apart (28 s by day 10), and are held
-   back for 18 s after every new objective. Fear follows the share of tasks done, not time.
-6. When the last task is done the remaining scripted moments are hurried (6 to 15 s apart) so the bed is never stuck;
-   then "I should try to sleep." and the objective "Go to bed".
+## Numbers
+| Name | Value | Unit | What to watch in playtests |
+|---|---|---|---|
+| Required tasks per day | 5–7 | tasks | Boredom vs. learnability |
+| Max task duration | 6 | s | Phone thumb fatigue on hold actions |
+| Day length (target) | 10–14 | min | Total playtime ≈ 2–2.5 h |
+| Stair count (tower) | 62 | steps | Used by anomalies (count changes) |
 
-## Numbers [ASSUMPTION]
-| Day | Required tasks | Length |
-|---|---|---|
-| 1 | 4 | 10–12 min |
-| 2–6 | 3–4 | 8–10 min |
-| 7–10 | 1–3 | 6–8 min |
+## Edge cases
+- Quitting mid-day: resume at the day's start (autosave only at sleep) [ASSUMPTION].
+- Pause menu available at any time; tasks cannot be failed.
+- Skipping a task: sleep stays locked and the log highlights it.
 
 ## Open questions
-- Hunger and tiredness meters? Not needed: the tasks carry it.
+- [ASSUMPTION] Hold actions are acceptable on touch; tap-only fallback if not.
+
+## History
+- 2026-11-19: designed.

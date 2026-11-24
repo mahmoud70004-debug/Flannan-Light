@@ -1,99 +1,115 @@
-# No One Home — Game Design Document
+# Flannan Light — Game Design Document
 
-**Version:** 0.3 · **Updated:** 2026-11-22 · [Features](#feature-index) · [Decisions](#decisions) · [Change log](#change-log)
-
-> Replaces *Flannan Light* (lighthouse island), which is kept on branch `archive/flannan-light-v1`. The technical pipeline is unchanged; story, setting, look and name are new. "No One Home" is a working title (one constant in `scripts/title.gd`).
+**Version:** 0.7 · **Updated:** 2026-11-19 · [Features](#feature-index) · [Decisions](#decisions) · [Change log](#change-log)
 
 ## Summary
-Martin is in his thirties. He was a respected employee until he was fired for "misconduct and psychological problems"; he does not understand the second phrase. His parents died years ago, his only relative is his brother Jack, who lives in another state with a family of his own. Martin sits alone in a small, messy, depressing flat, and over **ten days** he becomes sure that someone, or something, is in the flat with him. He tries to hide, avoid it and find an explanation, while living an ordinary day (eating, applying for jobs, sleeping). Slowly the player understands there is no intruder: Martin has been ill all along. The game ends with him found dead in the flat weeks later, because nobody was looking for him.
+You are a new lighthouse keeper in the early 1900s, alone on a remote island in an archipelago run by a government superintendent, Martin. Martin teaches you the daily routine on day 1, sails away, and visits every few days. You clean the tower, check the lamp, keep the store, watch ships and signal the far lighthouses. The routine is calm and repetitive on purpose; then it starts to break. The game is psychological horror through exploration only: no monsters, no combat. It ends when Martin, your only link to the world, starts to behave wrongly and you learn what the routine has been hiding.
 
-The game is a first-person psychological horror in **one closed apartment** with long halls and many doors. No chase, no combat, no loud jump scares. Dread comes from sound, light, wrong-looking people and the repetition of a daily routine that is slowly infected.
+Inspired by the 1900 disappearance of the three keepers of the Flannan Isles lighthouse. All characters, names and events in the game are fictional.
 
 | | |
 |---|---|
-| Genre and camera | First-person 3D psychological horror, routine + narrative |
-| Audience | Mobile players who like slow, heavy, adult horror (P.T., Visage, Layers of Fear, Lone Survivor) |
-| Platforms and input | Android phone (test via web build, release via APK/AAB). Landscape. Left virtual stick = move; right side drag = look; one Use button |
-| Session | 10 in-game days of about 8–12 min each; about 1.5–2 h [ASSUMPTION] |
-| Engine | Godot 4.7.2, GDScript, Compatibility renderer for the web build (see D-001) |
-| Look | Photographic: scanned PBR textures (CC0), warm/cold practical lights, film grade (grain, vignette, fringe, bloom) at 540p+ upscaled |
-| Tone | Bleak, surreal, tragic. The ending is dark and not softened |
-| References | P.T. (one corridor, repetition), Visage, Silent Hill 2 (guilt, illness), Hellblade (unreliable perception), Papers, Please (routine as engine of dread) |
+| Genre and camera | First-person 3D psychological horror, routine sim |
+| Audience | Core mobile players who like slow-burn horror (Lone Survivor, Iron Lung, Lethal Company-style dread without combat) |
+| Platforms and input | Android phone (test via web build, release via APK/AAB). Landscape. Left virtual stick = move; whole right side = look (drag); one Interact button |
+| Session | 10 in-game days of about 10–14 min each; 2–2.5 h total [ASSUMPTION] |
+| Engine | Godot 4.7 (4.7.2), GDScript, Compatibility renderer [ASSUMPTION — see D-001] |
+| Scope | Small commercial release: itch.io + Google Play |
+| References | Papers, Please (routine as the engine of dread), Iron Lung (isolation, restricted view), Return of the Obra Dinn / Playdead-era 1-bit looks (dithered B/W) |
 
 ## Pillars
-1. **One flat, no spatial tricks.** Rooms never stretch, swap or change. All horror lives in what is *in* the rooms: sound, light, objects, a person who should not be there. This also keeps the art cost small.
-2. **The routine is infected.** Every scare happens during a normal task (eating, checking the job board, brushing teeth). Mundane and wrong are mixed in the same minute.
-3. **Quiet dread.** No loud stingers, no chase. Silence, tiny sounds (footsteps, a cough, laughter, knocking), lights going out, a stranger standing in the room. The uncanny figure is seen, never fought.
-4. **The truth is fair.** The player believes there is an intruder; every clue to the real answer is visible from day 1 (untouched pills, one chain on the door, two plates, phone logs) and only makes sense on the ending.
-5. **Photographic on a mid-range phone.** Few big baked-feeling surfaces, scanned textures, one or two dynamic lights per room, higher render height than before. Target: steady 30 fps on a Redmi Note 14 (Helio G99 Ultra) in the browser.
-6. **Escalate by data.** Each day is a content file (tasks, events, phone calls, hallucinations). New days are authored, not programmed.
+1. **The routine is the game.** Every horror beat is a deviation from a task the player already knows by heart; no new system is introduced just to scare.
+2. **Nothing attacks you.** No combat, no chase, no jump scares, no loud stingers. Dread comes from wrongness, absence and silence. A glimpse never pays off with an attack: the light cuts out, comes back, and the thing is gone.
+3. **Martin is the last anchor.** His visits are the only safety; the horror peaks when that safety is corrupted. His dialogue changes by tiny edits, never by a sudden turn.
+4. **One-bit and cheap.** Pure black-and-white, low-res, dithered. Lighting, silhouette and dither carry the art, so assets stay simple and the game runs on mid-range phones.
+5. **Escalate by data, not code.** Each day is a content file; new anomalies are authored, not programmed.
 
 ## Core loop
 ```
-wake → what Martin does today (tasks) → events interrupt the tasks → night (the worst part) → next day
+wake → Martin's/log instructions → do daily tasks (clean, check lamp, store, watch ships, signal) → sleep → next day (a little more wrong)
 ```
-- **Seconds:** walk the flat, look, use one object; a sound from the corridor makes the player stop ([daily-routine](features/daily-routine/design.md)).
-- **Minutes:** a task is interrupted by something wrong ([hallucination-director](features/hallucination-director/design.md)).
-- **Session:** a day ends at sleep; the next day has new tasks and a notch more wrongness. Jack's calls ring on the landline at the far end of the corridor ([narrative](features/narrative/design.md)).
-
-## The flat
-A flat of about 100 m² built from data in `scripts/apartment.gd` (rooms on a grid; walls derived from where rooms touch; lists of doors, arches and windows) and furnished in `scripts/furnishings.gd`. It is an **open plan**: the **living room is the heart** (6.0 × 7.4 m), with the kitchen and the entry opening onto it through arches, and a hall running west to the private rooms. Every door has the same 0.90 m opening, and a test floods the floor with a fat player capsule to prove that every room, aisle and prop is reachable.
-
-| Room | Size (m) | Notes |
-|---|---|---|
-| Entry | 2.2 × 2.2 | Front door with the chain on, shoe rack, Martin's grey coat, the mail piling up, a dark mirror |
-| Living room | 6.0 × 7.4 | Sofa, TV, desk with the laptop and job applications, a dining table with food that has been left to rot, empty beer bottles, flies; two big east windows |
-| Kitchen | 3.8 × 2.2 | Counters, fridge, a calendar, a clock, rotting plates and a pot, the **trash corner** (overflowing bin, bags, empty beer bottles, flies) |
-| Hall | 5.4 × 1.4 | The landline and answering machine at the far west end, under a window |
-| Bathroom | 2.6 × 2.6 | Damp walls, tub with the shower curtain drawn, medicine cabinet (the pills) |
-| Storage | 2.8 × 2.6 | Dad's boxes and his armchair, the family photo |
-| Martin's bedroom | 3.0 × 4.0 | Bed, wardrobe, beer bottles and clothes on the floor |
-| Jack's old room | 2.4 × 4.0 | Old bed, desk (J + M 1998), trophies |
+- **Seconds:** walk, look, interact with one object ([daily-routine](features/daily-routine/design.md)).
+- **Minutes:** a ship appears, you identify its bearing and signal the far lighthouses ([ship-signaling](features/ship-signaling/design.md)).
+- **Session:** a day ends at sleep; the next day adds anomalies from the day's data ([anomaly-escalation](features/anomaly-escalation/design.md)); Martin visits on days 1, 3, 5, 7, 9.
 
 ## Feature index
 
 | Feature | Status | Scope | Summary | Docs |
 |---|---|---|---|---|
-| Apartment | implemented | MVP | T-shaped flat, 13 rooms, doors/arches/windows from data; skirting, casings, curtains, radiators, stains, fake occlusion; per-room light layers; only rooms seen through open doors are drawn | — |
-| Photo renderer | implemented | MVP | 3D at 360–1080p, film shader (grade, grain, vignette, fringe, bloom, `fear` and `blackout` hooks), 4 grades | — |
-| Pixel/dither filter (FX) | implemented | MVP | Stacks on any grade: pixel blocks, fewer colour levels and a Bayer dither that grow with `fear`; OFF / LOW / MID / HIGH / AUTO (AUTO ramps over about ten minutes with spikes; events call `boost_fear`) | — |
-| Mobile controls | implemented | MVP | Floating stick, right-side look tracked per finger, Use button, debug strip (GRADE, RES, SHADOW, FX) | — |
-| Menus and settings | implemented | MVP | Title (continue / new game), pause menu (look, pixel filter, picture height, shadows, anti-aliasing, volume, debug info) | — |
-| Narrative | implemented | MVP | In-engine scripted moments, inner-monologue lines, found documents, phone messages | [design](features/narrative/design.md) |
-| Daily routine | implemented | MVP | Task list per day (eat, job search, sleep) driving the day | [design](features/daily-routine/design.md) |
-| Hallucination director | implemented | MVP | Data-driven events: sounds, lights out, the stranger, never an attack | [design](features/hallucination-director/design.md) |
-| Phone and landline | implemented | MVP | The landline rings at the far end of the hall; the answering machine plays Jack's voicemails (am_onyx, captioned). Day 10: Martin calls Jack and says nothing. The phone camera (from day 4) only ever shows empty rooms | — |
-| Audio | implemented | MVP | 40+ synthesised sounds (`tools/audio`) and generated voices (`tools/tts`): positional footsteps, cough, laughter, knocks, whispers, buzzing flies that get louder as you near, fridge, drip, drone and heartbeat that follow fear; background hushed on purpose before scares | — |
-| The stranger | implemented | MVP | One tall figure in Martin's own hoodie and jeans. Stop-motion at 12 fps, appears only unseen, holds still while watched, creeps closer when you look away, gone when stared at or approached; the face is Martin's at the end | — |
-| Save and continue | implemented | MVP | One slot in `user://`, saved after each task and each night; CONTINUE on the title screen | — |
-| Decay and flies | implemented | MVP | Rotting food, trash corner, beer bottles, fly swarms (one GPU draw call each) that grow worse by day | — |
-| Photographic assets | idea | later | Blender-modelled furniture, baked lighting, props | — |
-| Endings | implemented | MVP | Day 10: the stranger wears Martin's face; the epilogue, 41 days later, with Jack's last three voicemails and the closing cards | — |
+| Daily routine | designed | MVP | Task list per day: clean tower/bedroom, check lamp faults, tidy store, sleep | [design](features/daily-routine/design.md) |
+| Ship signaling | designed | MVP | Spot a ship, read its bearing, signal the far lighthouses with the shutter lamp | [design](features/ship-signaling/design.md) |
+| Anomaly escalation | designed | MVP | Data-driven anomalies, tiers 0–4, plus Martin's visit scripts | [design](features/anomaly-escalation/design.md) |
+| Mobile controls | implemented | MVP | Floating left stick, right-side drag look tracked per finger (web touch relative is unreliable), Interact button | — |
+| 1-bit renderer | idea | MVP | Low-res SubViewport, nearest filter, ordered-dither B/W shader | — |
+| Island | in progress | MVP | Island modelled in Blender from the outline of a real island: cliffs, sea stacks, surf, a gentle path (about 4 degrees) from the quay to the lighthouse gate | — |
+| Lighthouse | in progress | MVP | 17.8 m tower, keepers' building, compound wall (Blender). Hall, stair door, stairs down, store door, underground store (game-built) | — |
+| Doors | in progress | MVP | Hinged door with eased open/close; aim at the leaf or the opening to toggle | — |
+| Menus and settings | idea | MVP | Title, new/continue, settings (sensitivity, brightness, dither, volume), pause | — |
+| Save and continue | idea | MVP | Autosave at sleep, one slot, stored in `user://` | — |
+| Martin dialogue | idea | MVP | Text-only dialogue with scripted variants per visit | — |
+| Audio | idea | MVP | Fixed soundscape: silence, waves, storm, gulls; indoor low-pass; no music or stingers | — |
+| Glimpse events | idea | MVP | A grinning face seen for ~2 s in dim light during a task, then lights cut and return and it is gone; never attacks | — |
+| Visual style (PHOTO / CRUNCH) | in progress | MVP | Two post looks to choose between: CRUNCH (dithered palette) and PHOTO (24 tones, film grain, halation, soft edges); STYLE button toggles live | — |
+| Visual filters | idea | MVP | Selectable looks in Settings: pure 1-bit, 4-tone ash, warm dither, cold tide, reference palette | — |
+| Endings | idea | later | Three endings chosen by routine fidelity and final choice | — |
 
 ## Milestones
-1. **M0, pipeline:** web build on the phone, stick + look. *Done in Flannan Light and kept.*
-2. **M1, look dev (this build):** the flat is walkable with doors and lights in the photographic look · done when: the user runs it on the Redmi Note 14 and reports FPS for each RES setting, and the corridor "feels" right.
-3. **M2, one full day:** day 1 from waking to sleep with tasks, monologue, the phone and one event · done when: completable start to finish, autosave verified by quitting and continuing.
-4. **M3, vertical slice (days 1–4):** the stranger, sound set, first lights-out event.
-5. **M4, alpha (days 1–10)** and **M5, polish and APK.**
+1. **M0, pipeline:** empty scene with stick + look on the user's phone via a web link · done when: user opens the link on their Android phone, moves, looks, and sees the build number.
+2. **M1a, look dev (the store room):** one fully lit reference room · done when: the user finds it readable and unsettling in one chosen filter, with draw calls under 100.
+2. **M1b, greybox island and lighthouse:** walkable exterior and interiors · done when: 60 fps on the user's phone with the 1-bit shader on.
+3. **M2, one full routine day:** all MVP tasks on day 1 + sleep + save · done when: day 1 is completable start to finish with the autosave verified by quitting and continuing.
+4. **M3, vertical slice:** days 1–4 incl. Martin's first visit and the first anomaly · done when: a tester finishes it and reports the first anomaly as unsettling, not confusing.
+5. **M4, alpha:** all 10 days, placeholder audio/art · done when: playable start to ending without blockers.
+6. **M5, beta:** final art/audio, performance, settings, accessibility · done when: no crash in 3 consecutive full playthroughs on the user's phone; build size within budget.
+7. **M6, release:** itch.io page + Google Play · done when: signed AAB passes Play review; itch build live.
+
+## Direction
+- **Tone and narrative:** quiet, dry, bureaucratic. The log book is a diegetic narrator. Dread comes from small mismatches (counts, directions, handwriting, time). Stays ambiguous: the player never gets a monster to explain it.
+- **Art:** low-res, ordered dither, very dim lighting. Pure black and white is no longer mandatory: Settings offers several palette presets (see Visual filters) and the user picks the one that fits the mood. The face and figure style references a dithered, grinning, deep-black-eyed look (user reference); we design an original character, not a copy.
+- **Audio:** the soundscape is fixed for the whole game and never replaced: silence, violent waves, storm wind, gulls. No music and no stingers. Interior acoustics (a low-pass on the sea bus indoors) give silence and muffled waves without changing the sound set. Diegetic foley (steps, doors, task sounds) exists but is quiet.
+- **Accessibility and localization:** English only at launch; strings in a translation table from day one so adding a language does not touch code. Brightness and dither-strength settings; no flashing above 3 Hz outside the lamp rotation (which is slow).
+- **Content rules:** the 1900 disappearance is history. Do not quote Wilfrid Gibson's 1912 poem "Flannan Isle" (probably still in copyright) and do not base scenes on the 2018 film. Use only invented names for characters.
+
+## Game-level acceptance
+- 60 fps target and 30 fps floor on the user's Android phone; ≤ 100 draw calls; ≤ 50k visible triangles.
+- Test build (Web) ≤ 40 MB download; first load ≤ 15 s on mobile data [ASSUMPTION].
+- A first-time player completes day 1 without reading anything outside the game.
 
 ## Decisions
 
 | ID | Date | Decision | Alternatives considered | Why | Affects |
 |---|---|---|---|---|---|
-| D-001 | 2026-11-21 | Keep Godot 4.7.2 + the web/Pages pipeline | Unreal Engine for mobile | Unreal has no web export, cannot be built in the cloud container or free CI, and every test would need an APK install; Godot gives a phone link per push | all |
-| D-002 | 2026-11-21 | A closed flat with no spatial hallucinations | Rooms that stretch, a changing world | Art and build cost, and it keeps the unreliable-narrator clues fair | [hallucination-director](features/hallucination-director/design.md) |
-| D-003 | 2026-11-21 | Photographic look instead of the dithered 1-bit look | Keep CRUNCH as an option | The user wants high-fidelity photo style; the flat is small enough to afford it | Photo renderer |
-| D-005 | 2026-11-22 | Camera 60° vertical FOV, player capsule 0.27 m, one door standard (0.90 m) | 72° FOV, 0.35 m capsule, mixed door widths | 72° vertical is about 116° horizontal on a 20:9 phone, which stretched doors and rooms; a 0.70 m wide player could not use 0.70–0.80 m doors | Apartment |
-| D-006 | 2026-11-22 | T-shaped layout with a closed hall door, 13 rooms, no room more than 1.8:1 | One straight corridor with rooms off it | Playtest: one straight corridor reads as unreal and shows everything | Apartment |
-| D-007 | 2026-11-22 | Hide rooms not reachable through open doors (draw calls 200 → 40–75) | Occlusion culling | CPU-side occlusion is too costly in the single-threaded web build | Apartment |
-| D-008 | 2026-11-22 | The pixel/dither filter is a separate setting on top of the grade, driven by fear | A fifth grade | The look must degrade as tension rises, and be tunable independently of colour | Pixel/dither filter |
-| D-009 | 2026-11-22 | Open plan with the living room as the heart, 8 rooms | 13 rooms in a T | Playtest: too many walls; the user asked for a living room, two bedrooms, a storage room and a bathroom only | Apartment |
-| D-010 | 2026-11-22 | `dev` branch for work, `main` only deploys on request; tests run on every push | Push to main | The user will say when to publish | CI |
-| D-011 | 2026-11-22 | Voices generated offline with kokoro-onnx (am_onyx for Jack), SFX synthesised in numpy | Recorded audio | No recordings available; the user chose the voice from candidates | Audio |
-| D-004 | 2026-11-21 | Real-time lights per room, ambient low, no baking yet | Baked lightmaps now | Lights must be able to go out; baking comes later as indirect light only (see development plan) | Apartment |
+| D-001 | 2026-11-19 | Godot 4.7.2, GDScript, Compatibility renderer | three.js (web only), Unity 6.3 (heavy web/mobile build) | One project yields a web build for instant phone testing and an Android build for release; web export uses Compatibility anyway, so mobile and web look the same | all |
+| D-002 | 2026-11-19 | Test builds ship as a web build on GitHub Pages (single-threaded); APK only for the final release | APK artifact per commit | User's requirement: a link per update; single-threaded needs no COOP/COEP headers, which Pages cannot set | M0 |
+| D-003 | 2026-11-19 | Text and UI in English only | Arabic + English | User choice; Arabic would need RTL shaping and a pixel font | UI, dialogue |
+| D-004 | 2026-11-19 | Days are data resources (`DayData`) | hard-coded day scripts | Slow escalation becomes content authoring | [anomaly-escalation](features/anomaly-escalation/design.md) |
+| D-006 | 2026-11-19 | Fixed soundscape: silence, waves, storm, gulls; no music, no stingers | add a score or stingers | User direction: terror from silence and escalation, never loud sounds | Audio |
+| D-007 | 2026-11-19 | Palette presets in Settings instead of mandatory pure B/W; user picks by playtesting | pure 1-bit only | User allows colours; palette swap is a cheap lookup in the dither shader | Visual filters |
+| D-008 | 2026-11-19 | Test link is GitHub Pages at `https://mahmoud70004-debug.github.io/Flannan-Light/`, auto-deployed by Actions on every push to `main` | Cloudflare/Netlify | User's required link format | M0 |
+| D-009 | 2026-11-20 | Outdoor and indoor lighting separated by visual layers (outdoor layer 1, interior layer 2); hut walls carry an outer skin on layer 1 | one shared light set | Moonlight must not reach the store room through walls; no shadows needed | Island, Store room |
+| D-010 | 2026-11-20 | Dither default 0.5 with a selectable grain size; texture pixel noise reduced | keep full dither | User: too many dither dots, but never smooth. Hard bands plus crisp edges instead of heavy noise | Visual filters |
+| D-011 | 2026-11-20 | Day 1 starts in overcast daylight, at the end of the jetty; dusk and night are later presets (`Atmosphere`) | start at night | User: the game must not begin at night. Daylight also sells the 1900 feel and makes the later nights land harder | Atmosphere, [anomaly-escalation](features/anomaly-escalation/design.md) |
+| D-012 | 2026-11-20 | Default look is ASH; SILVER (cool grey between ASH and COLD) added; COLD kept | REFERENCE default | User picked ASH then COLD for the 1900 feel | Visual filters |
+| D-013 | 2026-11-20 | Island and lighthouse are authored in Blender by script and exported as glTF; generated assets are committed | procedural-only terrain in GDScript | User asked for Blender-quality shapes; a real island outline (user's reference) gives a believable form; CI stays Blender-free | Island, Lighthouse |
+| D-014 | 2026-11-20 | Lighthouse is 17.8 m (was 28 m placeholder). The store is underground, reached from the hall by a stair door, stairs and a store door | store in a separate hut | User: shorter tower, internal lower door to an underground store | Lighthouse, [daily-routine](features/daily-routine/design.md) |
+| D-015 | 2026-11-20 | Default render height 360 (options 240-540); sun shadows on by default (SHADOW button cycles) | 240 | User agreed to raise resolution; their phone ran 65 fps at 360 in build 4 | Settings |
+| D-005 | 2026-11-19 | 3D renders in a low-res SubViewport, UI in the native-res window | one low-res window for all | Crisp UI at no extra GPU cost, pixel look for the world | 1-bit renderer |
+
+## Open questions
+- **Assumptions to confirm:** 10 days of about 12 min [ASSUMPTION]; Godot Compatibility renderer; "soft" grey option [ASSUMPTION]; three endings [ASSUMPTION]; Martin's dialogue is text only [ASSUMPTION].
+- **Risks:**
+  - Pure 1-bit may be unreadable in dark scenes → readability test on the real phone in M1, brightness/dither settings.
+  - Godot web on mid-range Android may stutter or run out of memory → performance spike in M0/M1 on the real phone before content.
+  - Web audio needs a user tap → the title screen's Start button unlocks audio.
+  - GitHub Pages needs a public repo (or a paid plan) → the repo is made public; the source is therefore visible (see DEVELOPMENT-PLAN).
+  - Glimpses can be missed on a small dim screen, or become predictable → gaze-triggered placement, a strict per-day budget, and every glimpse different (see DEVELOPMENT-PLAN).
+  - Horror pacing is hard to judge solo → a playtest per milestone from M3.
 
 ## Change log
-- 2026-11-22: The whole game is playable end to end on `dev` (v0.3): ten days, tasks, documents, voicemails, director, stranger, endings, save; open-plan flat with rot and flies.
-- 2026-11-22: Flat redesigned (T-shape, 13 rooms, standard doors, detail pass); pixel/dither filter added; FOV and player size fixed (v0.2).
-- 2026-11-21: New project replaces Flannan Light (v0.1).
+**0.1 (2026-11-19):** first draft; three core features designed; D-001 to D-005 logged.
+**0.7 (2026-11-21):** PHOTO vs CRUNCH look switch for the art-direction decision; scrollable title menu.
+**0.6 (2026-11-20):** Blender island and lighthouse, underground store, 360p default; D-013 to D-015.
+**0.5 (2026-11-20):** daylight start, time-of-day presets, whitewashed tower, faceted rocks, ASH default; D-011, D-012.
+**0.4 (2026-11-20):** island, door animation, lighting layers; D-009, D-010.
+**0.3 (2026-11-20):** look-dev phase added (store room, edge/contrast/vignette pass, merged geometry); touch look fixed.
+**0.2 (2026-11-19):** audio fixed (D-006), palette presets (D-007), deploy link (D-008); glimpse events and visual filters added to the index; pillar 2 rewritten.
