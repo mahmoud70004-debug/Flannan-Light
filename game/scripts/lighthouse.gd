@@ -23,6 +23,8 @@ var _beam: Node3D
 var _spot: SpotLight3D
 var _gate_light: OmniLight3D
 var _gate_mesh: MeshInstance3D
+var _halo: MeshInstance3D
+var _window_mat: StandardMaterial3D
 
 
 func _ready() -> void:
@@ -45,9 +47,43 @@ func _build_exterior() -> void:
 	_glass_mat.albedo_color = Color(0.07, 0.07, 0.08)
 	var scene := (load(MODEL) as PackedScene).instantiate()
 	add_child(scene)
-	for n in scene.find_children("LH_*", "MeshInstance3D", true, false):
+	_window_mat = StandardMaterial3D.new()
+	_window_mat.albedo_color = Color(0.06, 0.06, 0.07)
+	_window_mat.roughness = 0.2
+	for n in scene.find_children("*", "MeshInstance3D", true, false):
+		var mi := n as MeshInstance3D
+		mi.mesh = Island.grey_mesh(mi.mesh)
 		if n.name == "LH_glass":
-			(n as MeshInstance3D).material_override = _glass_mat
+			# The model has one glass mesh for the lantern room and the house windows. Only the lantern glows: the
+			# windows stay dark, because nobody is in the house.
+			var split := _split_by_height(mi.mesh, float(meta["tower"]["gallery_z"]) - 0.5)
+			mi.mesh = split[0]
+			mi.material_override = _window_mat
+			var lantern := MeshInstance3D.new()
+			lantern.mesh = split[1]
+			lantern.material_override = _glass_mat
+			mi.add_sibling(lantern)
+
+
+## Splits a mesh into [triangles below y, triangles above y] (in the mesh's own space).
+func _split_by_height(src: Mesh, y: float) -> Array:
+	var lo := SurfaceTool.new()
+	var hi := SurfaceTool.new()
+	lo.begin(Mesh.PRIMITIVE_TRIANGLES)
+	hi.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var mdt := MeshDataTool.new()
+	for si in src.get_surface_count():
+		mdt.create_from_surface(src as ArrayMesh, si)
+		for f in mdt.get_face_count():
+			var c := Vector3.ZERO
+			for k in 3:
+				c += mdt.get_vertex(mdt.get_face_vertex(f, k))
+			var st := hi if c.y / 3.0 > y else lo
+			for k in 3:
+				var vi := mdt.get_face_vertex(f, k)
+				st.set_normal(mdt.get_vertex_normal(vi))
+				st.add_vertex(mdt.get_vertex(vi))
+	return [lo.commit(), hi.commit()]
 
 
 func _collider(size: Vector3, pos: Vector3, shape_type := "box") -> void:
@@ -277,7 +313,44 @@ func _build_beam_and_lamps() -> void:
 	_spot.light_cull_mask = 1
 	_spot.rotation_degrees.x = -3.0
 	_beam.add_child(_spot)
+	# The visible shafts: two opposite beams, each two crossed quads with a soft additive falloff.
+	var bm := _beam_material()
+	for back in [0.0, PI]:
+		for roll in [0.0, PI / 2.0]:
+			var q := QuadMesh.new()
+			q.size = Vector2(3.2, 70.0)
+			var mi := MeshInstance3D.new()
+			mi.mesh = q
+			mi.material_override = bm
+			mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+			var b := Basis(Vector3.UP, back) * Basis(Vector3.FORWARD, roll) * Basis(Vector3.RIGHT, -PI / 2.0)
+			mi.transform = Transform3D(b, Basis(Vector3.UP, back) * Vector3(0, 0, -35.0))
+			mi.extra_cull_margin = 80.0
+			_beam.add_child(mi)
 	add_child(_beam)
+	# A soft halo round the lantern, as the lamp glows through rain and fog.
+	var g := Gradient.new()
+	g.colors = PackedColorArray([Color(1, 1, 1, 0.75), Color(1, 1, 1, 0.0)])
+	var gt := GradientTexture2D.new()
+	gt.gradient = g
+	gt.fill = GradientTexture2D.FILL_RADIAL
+	gt.fill_from = Vector2(0.5, 0.5)
+	gt.fill_to = Vector2(1.0, 0.5)
+	var hm := StandardMaterial3D.new()
+	hm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	hm.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	hm.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
+	hm.billboard_mode = BaseMaterial3D.BILLBOARD_ENABLED
+	hm.albedo_texture = gt
+	hm.disable_fog = true
+	var hq := QuadMesh.new()
+	hq.size = Vector2(7.0, 7.0)
+	_halo = MeshInstance3D.new()
+	_halo.mesh = hq
+	_halo.material_override = hm
+	_halo.position = Vector3(0, float(tw["lantern_z"]), 0)
+	_halo.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	add_child(_halo)
 
 	# A lamp beside the entrance door (outdoor layer).
 	var pos := Vector3(1.25, 2.45, 9.55)
@@ -292,9 +365,35 @@ func _build_beam_and_lamps() -> void:
 	add_child(_gate_light)
 
 
+func lantern_world() -> Vector3:
+	return global_position + Vector3(0, float(meta["tower"]["lantern_z"]), 0)
+
+
+## Additive, unshaded, with a falloff texture: bright at the lantern, fading along the shaft and toward its edges.
+func _beam_material() -> StandardMaterial3D:
+	var img := Image.create(16, 64, false, Image.FORMAT_RGBA8)
+	for y in 64:
+		for x in 16:
+			var along := 1.0 - float(y) / 63.0                 # texture top (v = 0) is the far end
+			var across := absf(float(x) / 15.0 - 0.5) * 2.0
+			var a := (1.0 - smoothstep(0.0, 1.0, along)) * (1.0 - smoothstep(0.15, 1.0, across)) * 0.6
+			img.set_pixel(x, y, Color(1, 1, 1, a))
+	var m := StandardMaterial3D.new()
+	m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	m.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
+	m.cull_mode = BaseMaterial3D.CULL_DISABLED
+	m.depth_draw_mode = BaseMaterial3D.DEPTH_DRAW_DISABLED
+	m.disable_fog = true
+	m.albedo_texture = ImageTexture.create_from_image(img)
+	m.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR
+	return m
+
+
 func set_beam(on: bool) -> void:
 	_beam.visible = on
 	_spot.visible = on
+	_halo.visible = on
 	_glass_mat.albedo_color = Color.WHITE if on else Color(0.07, 0.07, 0.08)
 
 

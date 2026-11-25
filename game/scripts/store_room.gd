@@ -257,6 +257,10 @@ func _build_lights() -> void:
 		window_light.light_energy = 3.0
 		add_child(window_light)
 
+	if underground:
+		# The store under the tower has no light of its own: the hanging lamp is dry. Only the keeper's hand lantern.
+		toggle_lantern()
+		return
 	# Lamp switch by the door: lets you see the room with the lantern off.
 	var sw := _interactable("Lantern", Vector3(0.18, 0.28, 0.1), Vector3(0.5, 1.4, D / 2 - 0.06))
 	sw.interacted.connect(toggle_lantern)

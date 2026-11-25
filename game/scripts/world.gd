@@ -17,6 +17,7 @@ var _sun: DirectionalLight3D
 var _time := "day"
 var _vignette := 0.3
 var _spawn := Vector3.ZERO
+var _weather: WeatherSound
 
 
 func _ready() -> void:
@@ -63,6 +64,9 @@ func _apply_settings() -> void:
 	_post_mat.set_shader_parameter("dither_cell", Settings.dither_cell)
 	_post_mat.set_shader_parameter("contrast", Settings.contrast)
 	_post_mat.set_shader_parameter("vignette", _vignette)
+	_post_mat.set_shader_parameter("rain", float(Atmosphere.PRESETS[_time].get("rain", 0.0)))
+	_post_mat.set_shader_parameter("grain", 0.085)
+	_post_mat.set_shader_parameter("halation", 0.7)
 	_post_mat.set_shader_parameter("mode", Settings.look_mode)
 	_post_mat.set_shader_parameter("edge_strength", 0.10 if Settings.look_mode == 1 else 0.8)
 	if _lighthouse:
@@ -98,11 +102,15 @@ func _build_world() -> void:
 	_view.add_child(_lighthouse)
 
 	_time = "day"
-	if OS.has_feature("web"):
-		var t := str(JavaScriptBridge.eval("new URLSearchParams(location.search).get('time') || ''"))
-		if Atmosphere.NAMES.has(t):
-			_time = t
+	var t := arg("time")
+	if Atmosphere.NAMES.has(t):
+		_time = t
 	_vignette = Atmosphere.apply(_time, _env, _sun, _island, _lighthouse)
+
+	Sfx.world = _island
+	_weather = WeatherSound.new()
+	_weather.rain = float(Atmosphere.PRESETS[_time].get("rain", 0.0))
+	add_child(_weather)
 
 	_player = Player.new()
 	_spawn = _island.spawn_point()
@@ -113,11 +121,19 @@ func _build_world() -> void:
 	_debug_spawn()
 
 
-## Web debug aid: add ?spawn=gate|door|inside|stairs|store|far|sky to the URL.
+## A debug option: `?name=value` on the web build, or `-- --name=value` on the command line (screenshots, tests).
+static func arg(name: String) -> String:
+	if OS.has_feature("web"):
+		return str(JavaScriptBridge.eval("new URLSearchParams(location.search).get('%s') || ''" % name))
+	for a in OS.get_cmdline_user_args():
+		if a.begins_with("--%s=" % name):
+			return a.substr(name.length() + 3)
+	return ""
+
+
+## Debug aid: spawn=gate|door|inside|stairs|store|far|sky|pier|pier_top (URL or command line).
 func _debug_spawn() -> void:
-	if not OS.has_feature("web"):
-		return
-	var where := str(JavaScriptBridge.eval("new URLSearchParams(location.search).get('spawn') || ''"))
+	var where := arg("spawn")
 	var lh := _lighthouse.position
 	match where:
 		"gate":
@@ -142,6 +158,16 @@ func _debug_spawn() -> void:
 			_player.position = pts[maxi(pts.size() - 6, 0)] + Vector3(0, 0.1, 0)
 			var d := lh - _player.position
 			_player.rotation.y = atan2(-d.x, -d.z)
+		"tower_look":                                   # the first reference: the tower from its foot, looking up
+			_player.position = lh + Vector3(0, 0.1, 14.0)
+			_player.rotation.y = 0.0
+			_player.set_pitch(0.5)
+		"pier_top":                                     # the second reference: the top of the pier, looking down to the sea
+			var pp := _island.path_points()
+			_player.position = pp[pp.size() - 1] + Vector3(0, 0.45, 0)
+			var dd: Vector3 = pp[0] - _player.position
+			_player.rotation.y = atan2(-dd.x, -dd.z)
+			_player.set_pitch(-0.32)
 		"sky":
 			_player.position = lh + Vector3(40.0, 70.0, 80.0)
 			_player.rotation.y = 0.5
@@ -180,6 +206,14 @@ func _on_interact() -> void:
 
 func _process(delta: float) -> void:
 	_player.move_input = _controls.move_vector
+	# The hand lantern is lit at night and below ground (the store has no light of its own).
+	var rel := _player.global_position - _lighthouse.position
+	var underground := Vector2(rel.x, rel.z).length() < 16.0 and rel.y < -1.2
+	var want_lantern := _time == "night" or underground
+	_weather.underground = underground
+	if want_lantern != _player.lantern_on():
+		_player.set_lantern(want_lantern)
+	_island.update_sky(_player.camera.global_position, _lighthouse.lantern_world())
 	var t := _player.target()
 	_controls.can_interact = t != null
 	_hud.set_prompt(str(t.get("prompt")) if t else "")

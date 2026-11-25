@@ -13,8 +13,10 @@ const SEA_Y := 0.0
 var meta: Dictionary
 var terrain_mesh: MeshInstance3D
 var _sea_mat: ShaderMaterial
-var _night_nodes: Array[Node3D] = []
-var _moon: MeshInstance3D
+var _bulb_nodes: Array = []
+var _bulb_mat: StandardMaterial3D
+var _halos: MultiMeshInstance3D
+var lamp_points: Array = []           ## where the pier lamps are (bulb positions)
 
 
 func _ready() -> void:
@@ -23,6 +25,7 @@ func _ready() -> void:
 	_build_sea()
 	_build_sky()
 	_build_jetty()
+	_build_boardwalk()
 	_build_boundary()
 
 
@@ -72,6 +75,7 @@ func _build_terrain() -> void:
 	for n in scene.find_children("*", "MeshInstance3D", true, false):
 		var mi := n as MeshInstance3D
 		mi.material_override = mat
+		mi.mesh = Island.grey_mesh(mi.mesh)                            # every source is grey: only the hand lantern is warm
 		if mi.name.begins_with("Terrain"):
 			terrain_mesh = mi
 			var body := StaticBody3D.new()
@@ -98,51 +102,67 @@ func _build_sea() -> void:
 	add_child(mi)
 
 
+var _sky_dome: MeshInstance3D
+var _sky_mat: ShaderMaterial
+
+
+## A dome of storm clouds that follows the camera (see shaders/sky_clouds.gdshader).
 func _build_sky() -> void:
-	# Moon: a bright disc, unaffected by fog. Placed by set_night_sky().
-	_moon = MeshInstance3D.new()
 	var sph := SphereMesh.new()
-	sph.radius = 7.0
-	sph.height = 14.0
-	sph.radial_segments = 12
-	sph.rings = 6
-	_moon.mesh = sph
-	var mm := StandardMaterial3D.new()
-	mm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	mm.albedo_color = Color.WHITE
-	mm.disable_fog = true
-	_moon.material_override = mm
-	add_child(_moon)
-	_night_nodes.append(_moon)
-
-	var rng := RandomNumberGenerator.new()
-	rng.seed = 1900
-	var verts := PackedVector3Array()
-	for i in 220:
-		var dir := Vector3(rng.randf_range(-1, 1), rng.randf_range(0.08, 1.0), rng.randf_range(-1, 1)).normalized()
-		verts.append(dir * 250.0)
-	var arrays := []
-	arrays.resize(Mesh.ARRAY_MAX)
-	arrays[Mesh.ARRAY_VERTEX] = verts
-	var am := ArrayMesh.new()
-	am.add_surface_from_arrays(Mesh.PRIMITIVE_POINTS, arrays)
-	var stars := MeshInstance3D.new()
-	stars.mesh = am
-	var sm := StandardMaterial3D.new()
-	sm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	sm.albedo_color = Color(0.9, 0.9, 0.9)
-	sm.use_point_size = true
-	sm.point_size = 2.0
-	sm.disable_fog = true
-	stars.material_override = sm
-	add_child(stars)
-	_night_nodes.append(stars)
+	sph.radius = 240.0
+	sph.height = 480.0
+	sph.radial_segments = 24
+	sph.rings = 12
+	_sky_dome = MeshInstance3D.new()
+	_sky_dome.mesh = sph
+	_sky_mat = ShaderMaterial.new()
+	_sky_mat.shader = preload("res://shaders/sky_clouds.gdshader")
+	_sky_dome.material_override = _sky_mat
+	_sky_dome.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	_sky_dome.extra_cull_margin = 16384.0
+	add_child(_sky_dome)
 
 
-func set_night_sky(on: bool, light_dir: Vector3) -> void:
-	for n in _night_nodes:
-		n.visible = on
-	_moon.position = light_dir * 240.0
+func set_sky(p: Dictionary) -> void:
+	_sky_mat.set_shader_parameter("top_color", p["sky_top"])
+	_sky_mat.set_shader_parameter("horizon_color", p["sky_horizon"])
+	_sky_mat.set_shader_parameter("cloud_bright", p.get("cloud_bright", 0.7))
+	_sky_mat.set_shader_parameter("cloud_dark", p.get("cloud_dark", 0.3))
+	_sky_mat.set_shader_parameter("cloud_cover", p.get("cloud_cover", 0.65))
+	_sky_mat.set_shader_parameter("glow", p.get("sky_glow", 0.0))
+	for b in _bulb_nodes:
+		(b as GeometryInstance3D).visible = true
+	if _bulb_mat:
+		_bulb_mat.albedo_color = Color(1, 1, 1) if p.get("night", false) else Color(0.55, 0.55, 0.55)
+	if _halos:
+		_halos.visible = p.get("night", false)
+
+
+## Called every frame: the dome stays centred on the camera; the clouds glow toward the lantern.
+func update_sky(cam_pos: Vector3, lantern_pos: Vector3) -> void:
+	_sky_dome.global_position = cam_pos
+	_sky_mat.set_shader_parameter("glow_dir", (lantern_pos - cam_pos).normalized())
+
+
+## The same mesh with its vertex colours turned to grey (the Blender models carry tinted colours).
+static func grey_mesh(src: Mesh) -> Mesh:
+	if src == null or not (src is ArrayMesh):
+		return src
+	var out := ArrayMesh.new()
+	for i in src.get_surface_count():
+		var arr := src.surface_get_arrays(i)
+		var cols = arr[Mesh.ARRAY_COLOR]
+		if cols is PackedColorArray:
+			var g := PackedColorArray()
+			g.resize(cols.size())
+			for k in cols.size():
+				var c: Color = cols[k]
+				var l := c.r * 0.299 + c.g * 0.587 + c.b * 0.114
+				g[k] = Color(l, l, l, c.a)
+			arr[Mesh.ARRAY_COLOR] = g
+		out.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arr)
+		out.surface_set_material(i, src.surface_get_material(i))
+	return out
 
 
 func set_sea(base: float, glint: float) -> void:
@@ -191,6 +211,169 @@ func _build_jetty() -> void:
 	body.add_child(cs)
 	body.transform = Transform3D(basis, center)
 	add_child(body)
+
+
+# --- the boardwalk (the pier from the landing up to the lighthouse) -------------------------------------------
+# A raised wooden walkway on posts that follows the path, with a two-strand rope railing on its seaward side and a
+# small lamp on every fourth post. One merged mesh for the wood, one for the rope, one for the bulbs; the halos are
+# one MultiMesh. The walking surface is one sloped collider per segment (a CharacterBody3D cannot climb risers).
+
+const WALK_W := 1.5           ## deck width
+const WALK_RAISE := 0.32      ## deck top above the path
+const POST_STEP := 2.4        ## metres between railing posts
+const LAMP_EVERY := 4         ## a lamp on every n-th post
+
+
+func _build_boardwalk() -> void:
+	var pts: Array = path_points()
+	var wood := SurfaceTool.new()
+	wood.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var rope := SurfaceTool.new()
+	rope.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var bulbs := SurfaceTool.new()
+	bulbs.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var out := seaward()
+	var jetty_start := _v(meta["landing"]) + out * (QUAY_LENGTH - JETTY_OVERLAP)
+	jetty_start.y = JETTY_Y
+	var jetty_far := jetty_start + out * JETTY_LENGTH
+	var deck_pts: Array = [jetty_start]                    # the walkway runs on from the jetty deck, with no step
+	for p in pts:
+		deck_pts.append((p as Vector3) + Vector3(0, WALK_RAISE, 0))
+	# deck segments, each with its own sloped collider
+	for i in deck_pts.size() - 1:
+		var a: Vector3 = deck_pts[i]
+		var b: Vector3 = deck_pts[i + 1]
+		var d := b - a
+		var basis := Basis.looking_at(d.normalized(), Vector3.UP)
+		var box := BoxMesh.new()
+		box.size = Vector3(WALK_W, 0.09, d.length() + 0.25)
+		var center := (a + b) * 0.5 - basis.y * 0.045
+		wood.append_from(box, 0, Transform3D(basis, center))
+		var body := StaticBody3D.new()
+		var cs := CollisionShape3D.new()
+		var bs := BoxShape3D.new()
+		bs.size = Vector3(WALK_W, 0.2, d.length() + 0.25)
+		cs.shape = bs
+		body.add_child(cs)
+		body.transform = Transform3D(basis, center - basis.y * 0.055)
+		add_child(body)
+		# cross-bearers under the deck every metre, and the deck reads as boards from below
+		var n := int(d.length())
+		for k in n:
+			var c := a + d * ((float(k) + 0.5) / float(maxi(n, 1)))
+			var bearer := BoxMesh.new()
+			bearer.size = Vector3(WALK_W + 0.1, 0.1, 0.12)
+			wood.append_from(bearer, 0, Transform3D(basis, c - basis.y * 0.14))
+	_railing([jetty_far] + deck_pts, wood, rope, bulbs, 1.0)
+	_commit_boardwalk(wood, rope, bulbs)
+
+
+## Posts along one side of a polyline of deck points, rope between them, a lamp on every LAMP_EVERY-th post.
+func _railing(deck_pts: Array, wood: SurfaceTool, rope: SurfaceTool, bulbs: SurfaceTool, side: float) -> void:
+	var posts: Array = []
+	var walked := 0.0
+	var next_post := 0.3
+	for i in deck_pts.size() - 1:
+		var a: Vector3 = deck_pts[i]
+		var b: Vector3 = deck_pts[i + 1]
+		var seg := (b - a).length()
+		var flat := Vector3(b.x - a.x, 0, b.z - a.z).normalized()
+		var right := Vector3(-flat.z, 0, flat.x) * side
+		while next_post <= walked + seg:
+			var t := (next_post - walked) / seg
+			posts.append(a.lerp(b, t) + right * (WALK_W * 0.5 - 0.05))
+			next_post += POST_STEP
+		walked += seg
+	for k in posts.size():
+		var p: Vector3 = posts[k]
+		var lamp := k % LAMP_EVERY == 0
+		var top := 1.55 if lamp else 1.05
+		var post := BoxMesh.new()
+		post.size = Vector3(0.12, top + 1.6, 0.12)
+		wood.append_from(post, 0, Transform3D(Basis(), p + Vector3(0, (top - 1.6) * 0.5, 0)))
+		if lamp:
+			var arm := BoxMesh.new()
+			arm.size = Vector3(0.06, 0.06, 0.26)
+			wood.append_from(arm, 0, Transform3D(Basis(), p + Vector3(0, top - 0.04, 0)))
+			var bulb := SphereMesh.new()
+			bulb.radius = 0.07
+			bulb.height = 0.14
+			bulb.radial_segments = 8
+			bulb.rings = 4
+			var bp := p + Vector3(0, top - 0.16, 0)
+			bulbs.append_from(bulb, 0, Transform3D(Basis(), bp))
+			lamp_points.append(bp)
+		if k > 0:
+			var q: Vector3 = posts[k - 1]
+			for hgt in [0.5, 0.92]:
+				_rope_span(rope, q + Vector3(0, hgt, 0), p + Vector3(0, hgt, 0), 0.07)
+
+
+## A sagging rope between two points: two straight pieces meeting a little below the middle.
+func _rope_span(st: SurfaceTool, a: Vector3, b: Vector3, sag: float) -> void:
+	var mid := (a + b) * 0.5 - Vector3(0, sag, 0)
+	for pair in [[a, mid], [mid, b]]:
+		var p0: Vector3 = pair[0]
+		var p1: Vector3 = pair[1]
+		var d := p1 - p0
+		if d.length() < 0.01:
+			continue
+		var box := BoxMesh.new()
+		box.size = Vector3(0.03, 0.03, d.length())
+		st.append_from(box, 0, Transform3D(Basis.looking_at(d.normalized(), Vector3.UP if absf(d.normalized().y) < 0.95 else Vector3.RIGHT), (p0 + p1) * 0.5))
+
+
+func _commit_boardwalk(wood: SurfaceTool, rope: SurfaceTool, bulbs: SurfaceTool) -> void:
+	wood.generate_tangents()
+	var wmi := MeshInstance3D.new()
+	wmi.mesh = wood.commit()
+	wmi.material_override = Tex.material(Tex.planks(), 1.0, 0.75)
+	add_child(wmi)
+	var rmi := MeshInstance3D.new()
+	rmi.mesh = rope.commit()
+	var rm := StandardMaterial3D.new()
+	rm.albedo_color = Color(0.12, 0.12, 0.12)
+	rm.roughness = 1.0
+	rmi.material_override = rm
+	add_child(rmi)
+	var bmi := MeshInstance3D.new()
+	bmi.mesh = bulbs.commit()
+	_bulb_mat = StandardMaterial3D.new()
+	_bulb_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	_bulb_mat.albedo_color = Color(0.55, 0.55, 0.55)
+	bmi.material_override = _bulb_mat
+	add_child(bmi)
+	_bulb_nodes.append(bmi)
+	# halos: one MultiMesh of camera-facing soft discs, shown at night
+	var g := Gradient.new()
+	g.colors = PackedColorArray([Color(1, 1, 1, 0.55), Color(1, 1, 1, 0.0)])
+	var gt := GradientTexture2D.new()
+	gt.gradient = g
+	gt.fill = GradientTexture2D.FILL_RADIAL
+	gt.fill_from = Vector2(0.5, 0.5)
+	gt.fill_to = Vector2(1.0, 0.5)
+	gt.width = 64
+	gt.height = 64
+	var hm := StandardMaterial3D.new()
+	hm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	hm.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	hm.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
+	hm.billboard_mode = BaseMaterial3D.BILLBOARD_ENABLED
+	hm.albedo_texture = gt
+	hm.disable_fog = true
+	var q := QuadMesh.new()
+	q.size = Vector2(1.3, 1.3)
+	q.material = hm
+	var mm := MultiMesh.new()
+	mm.transform_format = MultiMesh.TRANSFORM_3D
+	mm.mesh = q
+	mm.instance_count = lamp_points.size()
+	for i in lamp_points.size():
+		mm.set_instance_transform(i, Transform3D(Basis(), lamp_points[i]))
+	_halos = MultiMeshInstance3D.new()
+	_halos.multimesh = mm
+	_halos.visible = false
+	add_child(_halos)
 
 
 func _build_boundary() -> void:

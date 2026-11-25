@@ -2,3 +2,4 @@
 *.translation
 build/
 __pycache__/
+tools/audio/out/

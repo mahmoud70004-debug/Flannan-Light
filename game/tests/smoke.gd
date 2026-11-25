@@ -74,6 +74,7 @@ func _run() -> void:
 	var sp: Vector3 = island.spawn_point()
 	var spawn_hit := space.intersect_ray(PhysicsRayQueryParameters3D.create(sp + Vector3(0, 2, 0), sp - Vector3(0, 4, 0)))
 	_check(not spawn_hit.is_empty(), "there is a floor under the spawn point")
+	await _walk_boardwalk(island)
 	island.queue_free()
 
 	# Lighthouse: doors, stairs and the underground store
@@ -117,6 +118,39 @@ func _run() -> void:
 		s.save()
 
 	quit(1 if _failed else 0)
+
+
+## A real CharacterBody3D walks the whole pier: from the end of the jetty, up the boardwalk, to the top by the
+## lighthouse gate, steering from point to point. If the deck has a step it cannot climb, or a gap, it stalls.
+## The time it takes is printed: walking distances matter (long, empty walks bored the last playtester).
+func _walk_boardwalk(island) -> void:
+	var player = (load("res://scripts/player.gd") as GDScript).new()
+	root.add_child(player)
+	player.position = island.spawn_point()
+	await physics_frame
+	var pts: Array = island.path_points()
+	var targets: Array = []
+	for i in range(pts.size()):
+		targets.append(pts[i] + Vector3(0, island.WALK_RAISE, 0))
+	var t0 := 0
+	var stalled := false
+	for target in targets:
+		var tries := 0
+		while Vector2(player.position.x - target.x, player.position.z - target.z).length() > 0.8 and tries < 900:
+			var d: Vector3 = target - player.position
+			player.rotation.y = atan2(-d.x, -d.z)
+			player.move_input = Vector2(0, -1)
+			await physics_frame
+			tries += 1
+			t0 += 1
+		if tries >= 900:
+			stalled = true
+			break
+	player.move_input = Vector2.ZERO
+	var end: Vector3 = targets[targets.size() - 1]
+	_check(not stalled and player.position.distance_to(end) < 1.5, "walked the whole pier from the jetty to the top (stopped %.1f m short)" % player.position.distance_to(end))
+	print("INFO  walking the pier from the jetty end to the top takes %.0f s" % (float(t0) / 60.0))
+	player.queue_free()
 
 
 ## A real CharacterBody3D walks from outside the entrance, through the hall, the
