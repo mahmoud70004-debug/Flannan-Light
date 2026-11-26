@@ -106,6 +106,17 @@ func _run() -> void:
 	_check(catch_found, "entrance has an interaction catch that follows the door's prompt")
 	lh.queue_free()
 
+	# Old saved settings (an earlier build at 240p, brighter) give way to the new defaults
+	var cfg := ConfigFile.new()
+	cfg.set_value("meta", "version", 3)
+	cfg.set_value("video", "render_height", 240)
+	cfg.set_value("video", "brightness", 1.6)
+	cfg.save("user://settings.cfg")
+	var fresh = (load("res://scripts/settings.gd") as GDScript).new()
+	fresh._ready()
+	_check(fresh.render_height == 360 and absf(fresh.brightness - 1.15) < 0.01, "old saved settings are replaced by the new defaults (%dp, brightness %.2f)" % [fresh.render_height, fresh.brightness])
+	fresh.free()
+
 	# Settings round-trip
 	var s := root.get_node_or_null("Settings")
 	_check(s != null, "Settings autoload present")
@@ -188,6 +199,26 @@ func _island_walks(island) -> void:
 					escaped += 1
 					print("      escaped at segment %d (f=%.2f): at %s" % [i, f, player.position])
 	_check(escaped == 0, "pushed against the rails %d times: never got off the walk (%d escapes)" % [probes, escaped])
+	# Walk off the cliff-top in sixteen directions. Wherever you end up you must be able to walk back to the tower
+	# door, or be in the sea (where the game puts you back on safe ground). Nowhere may strand you.
+	var tower: Vector3 = island.lighthouse_position()
+	var door: Vector3 = island.door_point()
+	var stranded := 0
+	for k in 16:
+		var dir := Vector3(sin(k * TAU / 16.0), 0, cos(k * TAU / 16.0))
+		player.position = tower + dir * 5.0 + Vector3(0, 0.3, 0)
+		player.velocity = Vector3.ZERO
+		await physics_frame
+		await _push(player, dir, 12.0)
+		var end: Vector3 = player.position
+		var fine: bool = end.y < Island.SEA_Y + 0.1 or island.on_walk(end)
+		if not fine:
+			var back: Array = await _steer(player, [door], 1.0, 1500)
+			fine = back[0] or player.position.y < Island.SEA_Y + 0.1
+		if not fine:
+			stranded += 1
+			print("      stranded walking off toward %d: ended at %s, stuck at %s" % [k, end, player.position])
+	_check(stranded == 0, "walking off the cliff-top never strands you (%d of 16 directions did)" % stranded)
 	player.position = walk[0] - island.seaward() * 1.0 + Vector3(0, 0.15, 0)
 	await physics_frame
 	await _push(player, island.seaward(), 2.0)

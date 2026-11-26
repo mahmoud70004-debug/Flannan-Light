@@ -707,6 +707,9 @@ func set_beam(on: bool) -> void:
 	_spot.visible = on
 	_halo.visible = on
 	_glass_mat.albedo_color = Color.WHITE if on else Color(0.07, 0.07, 0.08)
+	# at night the whole lantern glows through its glazing, as in the old photographs
+	_glazing_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED if on else BaseMaterial3D.SHADING_MODE_PER_PIXEL
+	_glazing_mat.albedo_color = Color(0.85, 0.85, 0.85, 0.7) if on else Color(0.12, 0.12, 0.13, 0.35)
 
 
 func set_porch(on: bool) -> void:

@@ -59,6 +59,24 @@ func walk_points() -> Array:
 	return pts
 
 
+func top_height() -> float:
+	return float(meta["top_h"])
+
+
+## Is a position on the dock or the stair (within its width of the centre line, near its surface)?
+func on_walk(p: Vector3) -> bool:
+	var walk := walk_points()
+	for i in walk.size() - 1:
+		var a: Vector3 = walk[i]
+		var b: Vector3 = walk[i + 1]
+		var ab := Vector2(b.x - a.x, b.z - a.z)
+		var t := clampf(Vector2(p.x - a.x, p.z - a.z).dot(ab) / ab.length_squared(), 0.0, 1.0)
+		var q := a.lerp(b, t)
+		if Vector2(p.x - q.x, p.z - q.z).length() <= WALK_W / 2.0 + 0.4 and absf(p.y - q.y) < 0.5:
+			return true
+	return false
+
+
 func path_points() -> Array:
 	return walk_points()
 

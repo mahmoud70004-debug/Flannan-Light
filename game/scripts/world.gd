@@ -232,8 +232,11 @@ func _process(delta: float) -> void:
 	var t := _player.target()
 	_controls.can_interact = t != null
 	_hud.set_prompt(str(t.get("prompt")) if t else "")
-	if _player.is_on_floor() and _player.position.y > 0.3:
+	# The last safe spot is only ever on the walk, the cliff-top or under a roof: never a slope or a rock in the cove,
+	# where you could be put back somewhere you cannot climb out of.
+	var pos := _player.global_position
+	if _player.is_on_floor() and (_indoors or _island.on_walk(pos) or pos.y > _island.top_height() - 1.5):
 		_safe = _player.position
-	if _player.position.y < -1.5:                    # fell off the rocks into the sea: back to the last dry spot
+	if _player.position.y < Island.SEA_Y + 0.1:      # in the sea: back to the last safe spot
 		_player.position = _safe
 		_player.velocity = Vector3.ZERO
