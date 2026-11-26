@@ -131,15 +131,17 @@ def g(p, y):
     return [round(float(p[0]), 3), round(float(y), 3), round(float(-p[1]), 3)]
 
 
-path = d["path"]
-step = max(1, len(path) // 24)
+o = d["out"]
 meta = {
     "bounds": {"min_x": X0, "max_x": X1, "min_z": -Y1, "max_z": -Y0},
-    "quay_height": QUAY_H,
-    "lighthouse": g(d["L"], d["lighthouse_h"]),
-    "landing": g(d["P0"], QUAY_H),
-    "path": [g(p, hh) for p, hh in zip(path[::step], d["path_h"][::step])],
-    "path_length_m": round(float(d["total"]), 1),
+    "lighthouse": g(d["L"], TOP_H),
+    "seaward": [round(float(o[0]), 4), 0.0, round(float(-o[1]), 4)],
+    "door": g(d["door"], TOP_H),
+    "stair": [g(p, hh) for p, hh in d["stair"]],
+    "dock": [g(p, DECK_H) for p in d["dock"]],
+    "deck_h": DECK_H,
+    "top_h": TOP_H,
+    "boulders": [g((b[0], b[1]), b[3]) + [round(float(b[2]), 2), b[4]] for b in d["boulders"]],
     "stacks": [g((s[1], s[2]), 0.0) + [s[3]] for s in stack_defs],
     "triangles": {"terrain": ntri, "stacks": len(SV) // 3},
 }
@@ -154,9 +156,7 @@ img = (np.flipud(foam) * 255).astype(np.uint8)                       # image row
 Image.fromarray(img, "L").save(os.path.join(TEX, "shore_mask.png"))
 
 # ---- report ------------------------------------------------------------------------
-dh = np.diff(d["path_h"]) / np.maximum(np.diff(d["path_h"]) * 0 + 0.5, 1e-6)
-print("path length %.0f m, max path gradient %.1f deg" % (d["total"], np.degrees(np.arctan(np.max(np.abs(dh))))))
-print("lighthouse ground %.2f m, top height max %.1f m" % (d["lighthouse_h"], h.max()))
+print("boulders:", len(d["boulders"]), " top height max %.1f m" % h.max())
 
 if "--preview" in sys.argv:
     out = sys.argv[sys.argv.index("--preview") + 1]

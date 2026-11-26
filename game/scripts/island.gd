@@ -16,7 +16,8 @@ var _sea_mat: ShaderMaterial
 var _bulb_nodes: Array = []
 var _bulb_mat: StandardMaterial3D
 var _halos: MultiMeshInstance3D
-var lamp_points: Array = []           ## where the pier lamps are (bulb positions)
+var lamp_points: Array = []           ## where the stair lamps are (bulb positions)
+var _terrain_shape: CollisionShape3D
 
 
 func _ready() -> void:
@@ -24,8 +25,8 @@ func _ready() -> void:
 	_build_terrain()
 	_build_sea()
 	_build_sky()
-	_build_jetty()
-	_build_boardwalk()
+	_build_walk()
+	_build_boulders()
 	_build_boundary()
 
 
@@ -35,30 +36,41 @@ func lighthouse_position() -> Vector3:
 	return _v(meta["lighthouse"])
 
 
-## The unit vector from the quay out to sea (where boats come from).
+## The unit vector from the island out to sea at the landing (where boats come from). The tower's door faces it.
 func seaward() -> Vector3:
-	var path: Array = meta["path"]
-	var d := _v(path[0]) - _v(path[1])
-	d.y = 0.0
-	return d.normalized()
+	return _v(meta["seaward"]).normalized()
 
 
-func jetty_end() -> Vector3:
-	return _v(meta["landing"]) + seaward() * (QUAY_LENGTH - JETTY_OVERLAP + JETTY_LENGTH - 1.5) + Vector3(0, JETTY_Y, 0)
+func tower_yaw() -> float:
+	var s := seaward()
+	return atan2(s.x, s.z)
 
 
-## Day 1 starts at the end of the jetty, facing the island: you have just been put ashore.
+func door_point() -> Vector3:
+	return _v(meta["door"])
+
+
+## The walk from the end of the dock up the stair to the cliff-top: dock end, stair foot, the flights and landings.
+## Heights are the walking surface.
+func walk_points() -> Array:
+	var pts: Array = [_v(meta["dock"][1]) + Vector3(0, WALK_LIFT, 0)]
+	for p in meta["stair"]:
+		pts.append(_v(p) + Vector3(0, WALK_LIFT, 0))
+	return pts
+
+
+func path_points() -> Array:
+	return walk_points()
+
+
+## Day 1 starts at the end of the dock, facing the island: you have just been put ashore.
 func spawn_point() -> Vector3:
-	return jetty_end() + Vector3(0, 0.1, 0)
+	return walk_points()[0] - seaward() * 1.2 + Vector3(0, 0.1, 0)
 
 
 func spawn_yaw() -> float:
 	var f := -seaward()
 	return atan2(-f.x, -f.z)
-
-
-func path_points() -> Array:
-	return (meta["path"] as Array).map(func(p: Array) -> Vector3: return _v(p))
 
 
 func _v(a: Array) -> Vector3:
@@ -70,7 +82,7 @@ func _v(a: Array) -> Vector3:
 func _build_terrain() -> void:
 	var scene := (load(MODEL) as PackedScene).instantiate()
 	add_child(scene)
-	var mat := Tex.material(Tex.rough(), 3.0, 2.6)
+	var mat := Tex.material(Tex.rock(), 3.0, 1.35, 2.5)
 	mat.vertex_color_use_as_albedo = true
 	for n in scene.find_children("*", "MeshInstance3D", true, false):
 		var mi := n as MeshInstance3D
@@ -82,6 +94,7 @@ func _build_terrain() -> void:
 			var shape := CollisionShape3D.new()
 			shape.shape = mi.mesh.create_trimesh_shape()
 			body.add_child(shape)
+			_terrain_shape = shape
 			add_child(body)
 
 
@@ -170,181 +183,198 @@ func set_sea(base: float, glint: float) -> void:
 	_sea_mat.set_shader_parameter("glint", glint)
 
 
-# --- jetty -------------------------------------------------------------------
+# --- the landing: a dock, then a wooden stair in three flights up the cliff ------------------------------------
+# One polyline runs from the end of the dock to the cliff-top. The walking surface and the rails on both sides are
+# one continuous collision mesh built from the same mitred outline: no step, no gap, no way off. The rope and posts
+# are only for the eye; the rail walls behind them are what stop you.
 
-const QUAY_LENGTH := 14.0     ## how far the rock quay runs out to sea (see island_data.py)
-const JETTY_LENGTH := 11.0
-const JETTY_OVERLAP := 3.5    ## the deck starts this far back along the quay
-const JETTY_Y := 1.42         ## deck top: just above the quay
+const WALK_W := 1.6           ## width of the dock and the stair
+const WALK_LIFT := 0.05       ## the deck sits this much above the stair line in the terrain data
+const RAIL_H := 1.25          ## height of the rail walls
+const POST_STEP := 1.9        ## metres between rail posts
+const TREAD_RISE := 0.19
 
-
-func _build_jetty() -> void:
-	var out := seaward()
-	var start := _v(meta["landing"]) + out * (QUAY_LENGTH - JETTY_OVERLAP)
-	var yaw := atan2(out.x, out.z)
-	var basis := Basis(Vector3.UP, yaw)
-	var mat := Tex.material(Tex.planks(), 1.0, 0.8)
-	var st := SurfaceTool.new()
-	st.begin(Mesh.PRIMITIVE_TRIANGLES)
-	var deck := BoxMesh.new()
-	deck.size = Vector3(2.3, 0.16, JETTY_LENGTH)
-	var center := start + out * (JETTY_LENGTH / 2.0)
-	center.y = JETTY_Y - 0.08
-	st.append_from(deck, 0, Transform3D(basis, center))
-	var post := BoxMesh.new()
-	post.size = Vector3(0.22, 3.4, 0.22)
-	for k in [0.5, 3.8, 7.1, 10.4]:
-		for sx in [-1.1, 1.1]:
-			var p: Vector3 = start + out * k + basis * Vector3(sx, 0, 0)
-			p.y = JETTY_Y - 1.7
-			st.append_from(post, 0, Transform3D(basis, p))
-	st.generate_tangents()
-	var mi := MeshInstance3D.new()
-	mi.mesh = st.commit()
-	mi.material_override = mat
-	add_child(mi)
-	var body := StaticBody3D.new()
-	var cs := CollisionShape3D.new()
-	var bs := BoxShape3D.new()
-	bs.size = deck.size
-	cs.shape = bs
-	body.add_child(cs)
-	body.transform = Transform3D(basis, center)
-	add_child(body)
+var walk_left: Array = []
+var walk_right: Array = []
 
 
-# --- the boardwalk (the pier from the landing up to the lighthouse) -------------------------------------------
-# A raised wooden walkway on posts that follows the path, with a two-strand rope railing on its seaward side and a
-# small lamp on every fourth post. One merged mesh for the wood, one for the rope, one for the bulbs; the halos are
-# one MultiMesh. The walking surface is one sloped collider per segment (a CharacterBody3D cannot climb risers).
-
-const WALK_W := 1.5           ## deck width
-const WALK_RAISE := 0.32      ## deck top above the path
-const POST_STEP := 2.4        ## metres between railing posts
-const LAMP_EVERY := 4         ## a lamp on every n-th post
-
-
-func _build_boardwalk() -> void:
-	var pts: Array = path_points()
-	var wood := SurfaceTool.new()
-	wood.begin(Mesh.PRIMITIVE_TRIANGLES)
-	var rope := SurfaceTool.new()
-	rope.begin(Mesh.PRIMITIVE_TRIANGLES)
-	var bulbs := SurfaceTool.new()
-	bulbs.begin(Mesh.PRIMITIVE_TRIANGLES)
-	var out := seaward()
-	var jetty_start := _v(meta["landing"]) + out * (QUAY_LENGTH - JETTY_OVERLAP)
-	jetty_start.y = JETTY_Y
-	var jetty_far := jetty_start + out * JETTY_LENGTH
-	var deck_pts: Array = [jetty_start]                    # the walkway runs on from the jetty deck, with no step
-	for p in pts:
-		deck_pts.append((p as Vector3) + Vector3(0, WALK_RAISE, 0))
-	# deck segments, each with its own sloped collider
-	for i in deck_pts.size() - 1:
-		var a: Vector3 = deck_pts[i]
-		var b: Vector3 = deck_pts[i + 1]
-		var d := b - a
-		var basis := Basis.looking_at(d.normalized(), Vector3.UP)
-		var box := BoxMesh.new()
-		box.size = Vector3(WALK_W, 0.09, d.length() + 0.25)
-		var center := (a + b) * 0.5 - basis.y * 0.045
-		wood.append_from(box, 0, Transform3D(basis, center))
-		var body := StaticBody3D.new()
-		var cs := CollisionShape3D.new()
-		var bs := BoxShape3D.new()
-		bs.size = Vector3(WALK_W, 0.2, d.length() + 0.25)
-		cs.shape = bs
-		body.add_child(cs)
-		body.transform = Transform3D(basis, center - basis.y * 0.055)
-		add_child(body)
-		# cross-bearers under the deck every metre, and the deck reads as boards from below
-		var n := int(d.length())
-		for k in n:
-			var c := a + d * ((float(k) + 0.5) / float(maxi(n, 1)))
-			var bearer := BoxMesh.new()
-			bearer.size = Vector3(WALK_W + 0.1, 0.1, 0.12)
-			wood.append_from(bearer, 0, Transform3D(basis, c - basis.y * 0.14))
-	_railing([jetty_far] + deck_pts, wood, rope, bulbs, 1.0)
-	_commit_boardwalk(wood, rope, bulbs)
+## Left and right edges of a polyline of width w, mitred at the corners (left = your left walking forward).
+static func edges(pts: Array, w: float) -> Array:
+	var left: Array = []
+	var right: Array = []
+	var n := pts.size()
+	for i in n:
+		var p: Vector3 = pts[i]
+		var dirs: Array = []
+		if i > 0:
+			dirs.append(_flat(p - pts[i - 1]))
+		if i < n - 1:
+			dirs.append(_flat(pts[i + 1] - p))
+		var sum := Vector3.ZERO
+		for d in dirs:
+			sum += Vector3(d.z, 0, -d.x)
+		var m := sum.normalized()
+		var lft := Vector3(dirs[0].z, 0, -dirs[0].x)
+		var k := (w / 2.0) / maxf(m.dot(lft), 0.4)
+		left.append(p + m * k)
+		right.append(p - m * k)
+	return [left, right]
 
 
-## Posts along one side of a polyline of deck points, rope between them, a lamp on every LAMP_EVERY-th post.
-func _railing(deck_pts: Array, wood: SurfaceTool, rope: SurfaceTool, bulbs: SurfaceTool, side: float) -> void:
-	var posts: Array = []
-	var walked := 0.0
-	var next_post := 0.3
-	for i in deck_pts.size() - 1:
-		var a: Vector3 = deck_pts[i]
-		var b: Vector3 = deck_pts[i + 1]
-		var seg := (b - a).length()
-		var flat := Vector3(b.x - a.x, 0, b.z - a.z).normalized()
-		var right := Vector3(-flat.z, 0, flat.x) * side
-		while next_post <= walked + seg:
-			var t := (next_post - walked) / seg
-			posts.append(a.lerp(b, t) + right * (WALK_W * 0.5 - 0.05))
-			next_post += POST_STEP
-		walked += seg
-	for k in posts.size():
-		var p: Vector3 = posts[k]
-		var lamp := k % LAMP_EVERY == 0
-		var top := 1.55 if lamp else 1.05
-		var post := BoxMesh.new()
-		post.size = Vector3(0.12, top + 1.6, 0.12)
-		wood.append_from(post, 0, Transform3D(Basis(), p + Vector3(0, (top - 1.6) * 0.5, 0)))
-		if lamp:
-			var arm := BoxMesh.new()
-			arm.size = Vector3(0.06, 0.06, 0.26)
-			wood.append_from(arm, 0, Transform3D(Basis(), p + Vector3(0, top - 0.04, 0)))
-			var bulb := SphereMesh.new()
-			bulb.radius = 0.07
-			bulb.height = 0.14
-			bulb.radial_segments = 8
-			bulb.rings = 4
-			var bp := p + Vector3(0, top - 0.16, 0)
-			bulbs.append_from(bulb, 0, Transform3D(Basis(), bp))
-			lamp_points.append(bp)
-		if k > 0:
-			var q: Vector3 = posts[k - 1]
-			for hgt in [0.5, 0.92]:
-				_rope_span(rope, q + Vector3(0, hgt, 0), p + Vector3(0, hgt, 0), 0.07)
+static func _flat(v: Vector3) -> Vector3:
+	return Vector3(v.x, 0, v.z).normalized()
 
 
-## A sagging rope between two points: two straight pieces meeting a little below the middle.
-func _rope_span(st: SurfaceTool, a: Vector3, b: Vector3, sag: float) -> void:
-	var mid := (a + b) * 0.5 - Vector3(0, sag, 0)
-	for pair in [[a, mid], [mid, b]]:
-		var p0: Vector3 = pair[0]
-		var p1: Vector3 = pair[1]
-		var d := p1 - p0
-		if d.length() < 0.01:
-			continue
-		var box := BoxMesh.new()
-		box.size = Vector3(0.03, 0.03, d.length())
-		st.append_from(box, 0, Transform3D(Basis.looking_at(d.normalized(), Vector3.UP if absf(d.normalized().y) < 0.95 else Vector3.RIGHT), (p0 + p1) * 0.5))
+static func _hull(pts: Array) -> Array:
+	var p := pts.duplicate()
+	p.sort_custom(func(a: Vector3, b: Vector3) -> bool: return a.x < b.x or (a.x == b.x and a.z < b.z))
+	var cross := func(o: Vector3, a: Vector3, b: Vector3) -> float: return (a.x - o.x) * (b.z - o.z) - (a.z - o.z) * (b.x - o.x)
+	var lower: Array = []
+	for q in p:
+		while lower.size() >= 2 and cross.call(lower[-2], lower[-1], q) <= 0.0:
+			lower.pop_back()
+		lower.append(q)
+	var upper: Array = []
+	for i in range(p.size() - 1, -1, -1):
+		var q: Vector3 = p[i]
+		while upper.size() >= 2 and cross.call(upper[-2], upper[-1], q) <= 0.0:
+			upper.pop_back()
+		upper.append(q)
+	lower.pop_back()
+	upper.pop_back()
+	return lower + upper
 
 
-func _commit_boardwalk(wood: SurfaceTool, rope: SurfaceTool, bulbs: SurfaceTool) -> void:
-	wood.generate_tangents()
-	var wmi := MeshInstance3D.new()
-	wmi.mesh = wood.commit()
-	wmi.material_override = Tex.material(Tex.planks(), 1.0, 0.75)
+func _build_walk() -> void:
+	var pts := walk_points()
+	var e := edges(pts, WALK_W)
+	walk_left = e[0]
+	walk_right = e[1]
+	var n := pts.size()
+
+	# Collision: the walking surface, a rail wall on each side, and one across the end of the dock. The top of the
+	# stair is left open onto the cliff-top.
+	var col := MeshBuilder.new()
+	for i in n - 1:
+		col.quad(walk_left[i], walk_right[i], walk_right[i + 1], walk_left[i + 1], Vector3.UP)
+	var down := Vector3(0, -0.3, 0)
+	col.ribbon(walk_left.map(func(p: Vector3) -> Vector3: return p + down), RAIL_H + 0.3)
+	col.ribbon(walk_right.map(func(p: Vector3) -> Vector3: return p + down), RAIL_H + 0.3)
+	col.ribbon([walk_left[0] + down, walk_right[0] + down], RAIL_H + 0.3)
+	add_child(MeshBuilder.body_from(col.faces))
+
+	# Visuals: plank decks on the flat parts, open treads on stringers up the flights, a pad at every turn.
+	var wood := MeshBuilder.new(false)
+	var dark := MeshBuilder.new(false)
+	for i in n - 1:
+		var a: Vector3 = pts[i]
+		var b: Vector3 = pts[i + 1]
+		var d := _flat(b - a)
+		var yaw := Basis.looking_at(d, Vector3.UP)
+		var run := Vector2(b.x - a.x, b.z - a.z).length()
+		var rise := b.y - a.y
+		var side := Vector3(-d.z, 0, d.x)
+		if absf(rise) < 0.05:
+			var planks := maxi(1, int(run / 0.24))
+			for k in planks:
+				var c := a.lerp(b, (k + 0.5) / planks)
+				wood.box(Transform3D(yaw, c - Vector3(0, 0.045, 0)), Vector3(WALK_W, 0.09, run / planks - 0.03))
+			for s in [-0.62, 0.62]:
+				dark.box(Transform3D(yaw, (a + b) / 2.0 + side * s - Vector3(0, 0.18, 0)), Vector3(0.14, 0.18, run))
+		else:
+			var steps := maxi(1, roundi(absf(rise) / TREAD_RISE))
+			for k in steps:
+				var s := (k + 0.5) / steps
+				var c := a.lerp(b, s)
+				var top := c.y + absf(rise) * 0.25 / steps
+				wood.box(Transform3D(yaw, Vector3(c.x, top - 0.03, c.z)), Vector3(WALK_W - 0.12, 0.06, run / steps + 0.03))
+			var slope := Basis.looking_at((b - a).normalized(), Vector3.UP)
+			for s in [-1.0, 1.0]:
+				dark.box(Transform3D(slope, (a + b) / 2.0 + side * s * (WALK_W / 2.0 - 0.05) - Vector3(0, 0.12, 0)),
+						Vector3(0.08, 0.3, (b - a).length() + 0.2))
+	for i in range(1, n - 1):
+		var p: Vector3 = pts[i]
+		var din := _flat(p - pts[i - 1])
+		var dout := _flat(pts[i + 1] - p)
+		var h := WALK_W / 2.0
+		var ring: Array = [walk_left[i], walk_right[i]]
+		for d in [din, dout]:
+			var l := Vector3(d.z, 0, -d.x)
+			ring.append(p + l * h)
+			ring.append(p - l * h)
+		wood.prism(_hull(ring), p.y - 0.1, p.y)
+	# Piles under the dock, into the sea floor.
+	var dock_a: Vector3 = pts[0]
+	var dock_b: Vector3 = pts[1]
+	var dd := _flat(dock_b - dock_a)
+	var dside := Vector3(-dd.z, 0, dd.x)
+	var dlen := Vector2(dock_b.x - dock_a.x, dock_b.z - dock_a.z).length()
+	var k2 := 0.3
+	while k2 <= dlen:
+		for s in [-0.7, 0.7]:
+			var pp: Vector3 = dock_a + dd * k2 + dside * s
+			dark.box(Transform3D(Basis(), Vector3(pp.x, (pp.y - 4.0) / 2.0 - 0.1, pp.z)), Vector3(0.24, pp.y + 4.0, 0.24))
+		k2 += 2.4
+	# Posts along both rails, a rope in two strands between them, and a lamp at every turn.
+	var rope := MeshBuilder.new(false)
+	var bulbs := MeshBuilder.new(false)
+	for side_pts in [walk_left, walk_right]:
+		var posts: Array = []
+		var lamps: Array = []
+		for i in side_pts.size() - 1:
+			var a: Vector3 = side_pts[i]
+			var b: Vector3 = side_pts[i + 1]
+			var seg := (b - a).length()
+			var cnt := maxi(1, ceili(seg / POST_STEP))
+			for k in cnt:
+				posts.append(a.lerp(b, float(k) / cnt))
+				lamps.append(k == 0 and side_pts == walk_left)
+		posts.append(side_pts[-1])
+		lamps.append(side_pts == walk_left)
+		for k in posts.size():
+			var p: Vector3 = posts[k]
+			var top := 1.6 if lamps[k] else 1.12
+			dark.box(Transform3D(Basis(), p + Vector3(0, (top - 1.8) / 2.0, 0)), Vector3(0.11, top + 1.8, 0.11))
+			if lamps[k]:
+				dark.box(Transform3D(Basis(), p + Vector3(0, top - 0.04, 0)), Vector3(0.24, 0.05, 0.05))
+				var bp := p + Vector3(0, top - 0.17, 0)
+				bulbs.box(Transform3D(Basis(), bp), Vector3(0.12, 0.17, 0.12))
+				lamp_points.append(bp)
+			if k > 0:
+				var q: Vector3 = posts[k - 1]
+				for hgt in [0.55, 1.02]:
+					_rope_span(rope, q + Vector3(0, hgt, 0), p + Vector3(0, hgt, 0), 0.07)
+	var wmi := wood.instance(Tex.material(Tex.planks(), 1.0, 0.8, 1.8))
 	add_child(wmi)
-	var rmi := MeshInstance3D.new()
-	rmi.mesh = rope.commit()
+	add_child(dark.instance(Tex.material(Tex.planks(), 1.0, 0.45, 1.8)))
 	var rm := StandardMaterial3D.new()
-	rm.albedo_color = Color(0.12, 0.12, 0.12)
+	rm.albedo_color = Color(0.13, 0.13, 0.13)
 	rm.roughness = 1.0
-	rmi.material_override = rm
-	add_child(rmi)
-	var bmi := MeshInstance3D.new()
-	bmi.mesh = bulbs.commit()
+	add_child(rope.instance(rm))
 	_bulb_mat = StandardMaterial3D.new()
 	_bulb_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	_bulb_mat.albedo_color = Color(0.55, 0.55, 0.55)
-	bmi.material_override = _bulb_mat
+	var bmi := bulbs.instance(_bulb_mat)
 	add_child(bmi)
 	_bulb_nodes.append(bmi)
-	# halos: one MultiMesh of camera-facing soft discs, shown at night
+	_build_halos()
+
+
+## A sagging rope between two points: two straight pieces meeting a little below the middle.
+func _rope_span(b: MeshBuilder, p0: Vector3, p1: Vector3, sag: float) -> void:
+	var mid := (p0 + p1) * 0.5 - Vector3(0, sag, 0)
+	for pair in [[p0, mid], [mid, p1]]:
+		var a: Vector3 = pair[0]
+		var c: Vector3 = pair[1]
+		var d := c - a
+		if d.length() < 0.01:
+			continue
+		var up := Vector3.UP if absf(d.normalized().y) < 0.95 else Vector3.RIGHT
+		b.box(Transform3D(Basis.looking_at(d.normalized(), up), (a + c) * 0.5), Vector3(0.035, 0.035, d.length()))
+
+
+## Soft camera-facing discs round the lamps, shown at night (one MultiMesh).
+func _build_halos() -> void:
 	var g := Gradient.new()
 	g.colors = PackedColorArray([Color(1, 1, 1, 0.55), Color(1, 1, 1, 0.0)])
 	var gt := GradientTexture2D.new()
@@ -374,6 +404,85 @@ func _commit_boardwalk(wood: SurfaceTool, rope: SurfaceTool, bulbs: SurfaceTool)
 	_halos.multimesh = mm
 	_halos.visible = false
 	add_child(_halos)
+
+
+# --- boulders: big rough rocks round the cove and beside the stair ------------------------------------------------
+
+func _build_boulders() -> void:
+	var b := MeshBuilder.new(false)
+	for item in meta.get("boulders", []):
+		var pos := Vector3(item[0], item[1], item[2])
+		var r: float = item[3]
+		var rng := RandomNumberGenerator.new()
+		rng.seed = int(item[4])
+		var sph := SphereMesh.new()
+		sph.radius = 1.0
+		sph.height = 2.0
+		sph.radial_segments = 9
+		sph.rings = 5
+		var arr := sph.get_mesh_arrays()
+		var verts: PackedVector3Array = arr[Mesh.ARRAY_VERTEX]
+		var idx: PackedInt32Array = arr[Mesh.ARRAY_INDEX]
+		var sx := r * rng.randf_range(0.65, 0.95)
+		var sy := r * rng.randf_range(0.45, 0.75)
+		var sz := r * rng.randf_range(0.65, 0.95)
+		var rot := Basis(Vector3.UP, rng.randf() * TAU)
+		var centre := pos + Vector3(0, sy * 0.2, 0)
+		var moved := PackedVector3Array()
+		for v in verts:
+			var key := Vector3i(roundi(v.x * 40.0), roundi(v.y * 40.0), roundi(v.z * 40.0))
+			var k := 0.78 + float(absi(hash([key, int(item[4])])) % 1000) / 1000.0 * 0.42
+			moved.append(centre + rot * (Vector3(v.x * sx, maxf(v.y, -0.4) * sy, v.z * sz) * k))
+		for t in range(0, idx.size(), 3):
+			var p0 := moved[idx[t]]
+			var p1 := moved[idx[t + 1]]
+			var p2 := moved[idx[t + 2]]
+			var nrm := (p1 - p0).cross(p2 - p0)
+			if nrm.length() < 1e-5:
+				continue
+			nrm = nrm.normalized()
+			if nrm.dot((p0 + p1 + p2) / 3.0 - centre) < 0.0:
+				nrm = -nrm
+			b.tri(p0, p1, p2, nrm, nrm, nrm)
+		var body := StaticBody3D.new()
+		var cs := CollisionShape3D.new()
+		var shape := ConvexPolygonShape3D.new()
+		shape.points = moved
+		cs.shape = shape
+		body.add_child(cs)
+		add_child(body)
+	if not b.is_empty():
+		add_child(b.instance(Tex.material(Tex.rock(), 2.0, 0.6, 3.0)))
+
+
+## Removes the terrain's triangles over a rectangle given in another node's frame (the tower cuts a hole for the
+## oil-store stair; its shed covers the edges).
+func cut_terrain(xf: Transform3D, rect: Rect2) -> void:
+	var mesh := terrain_mesh.mesh as ArrayMesh
+	var arr := mesh.surface_get_arrays(0)
+	var verts: PackedVector3Array = arr[Mesh.ARRAY_VERTEX]
+	var idx: PackedInt32Array = arr[Mesh.ARRAY_INDEX] if arr[Mesh.ARRAY_INDEX] != null else PackedInt32Array()
+	if idx.is_empty():
+		idx = PackedInt32Array(range(verts.size()))
+	var to_local := xf.affine_inverse() * terrain_mesh.global_transform
+	var keep := PackedInt32Array()
+	for t in range(0, idx.size(), 3):
+		var lo := Vector2(INF, INF)
+		var hi := Vector2(-INF, -INF)
+		for k in 3:
+			var p := to_local * verts[idx[t + k]]
+			lo = lo.min(Vector2(p.x, p.z))
+			hi = hi.max(Vector2(p.x, p.z))
+		if Rect2(lo, hi - lo).intersects(rect):
+			continue
+		keep.append(idx[t])
+		keep.append(idx[t + 1])
+		keep.append(idx[t + 2])
+	arr[Mesh.ARRAY_INDEX] = keep
+	var out := ArrayMesh.new()
+	out.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arr)
+	terrain_mesh.mesh = out
+	_terrain_shape.shape = out.create_trimesh_shape()
 
 
 func _build_boundary() -> void:

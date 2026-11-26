@@ -8,14 +8,14 @@ const PRESETS := {
 		"sky": true, "sky_top": Color(0.40, 0.40, 0.40), "sky_horizon": Color(0.62, 0.62, 0.62),
 		"cloud_bright": 0.80, "cloud_dark": 0.44, "cloud_cover": 0.72, "sky_glow": 0.0,
 		"fog": Color(0.62, 0.62, 0.62), "fog_density": 0.022, "fog_sky": 0.35, "rain": 0.25,
-		"ambient": Color(0.42, 0.42, 0.42), "light_dir": Vector3(-0.5, 0.5, 0.65), "light_energy": 1.0,
+		"ambient": Color(0.30, 0.30, 0.30), "light_dir": Vector3(-0.55, 0.6, 0.55), "light_energy": 1.35,
 		"vignette": 0.18, "night": false, "beam": false, "porch": false, "sea_base": 0.24, "sea_glint": 0.22,
 	},
 	"dusk": {
 		"sky": true, "sky_top": Color(0.10, 0.10, 0.10), "sky_horizon": Color(0.36, 0.36, 0.36),
 		"cloud_bright": 0.42, "cloud_dark": 0.12, "cloud_cover": 0.7, "sky_glow": 0.5,
 		"fog": Color(0.30, 0.30, 0.30), "fog_density": 0.018, "fog_sky": 0.4, "rain": 0.4,
-		"ambient": Color(0.26, 0.26, 0.26), "light_dir": Vector3(-0.8, 0.22, -0.3), "light_energy": 0.6,
+		"ambient": Color(0.20, 0.20, 0.20), "light_dir": Vector3(-0.8, 0.22, -0.3), "light_energy": 0.75,
 		"vignette": 0.35, "night": false, "beam": true, "porch": true, "sea_base": 0.16, "sea_glint": 0.35,
 	},
 	"night": {

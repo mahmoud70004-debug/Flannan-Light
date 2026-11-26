@@ -11,16 +11,20 @@ var _dark_wood: StandardMaterial3D
 var _sack: StandardMaterial3D
 var _iron: StandardMaterial3D
 var _plaster: StandardMaterial3D
+var _whitewash: StandardMaterial3D      ## the tower's whitewashed masonry
+var _flags: StandardMaterial3D          ## stone floors and steps
 var _batches := {}                ## [Material, layer] -> SurfaceTool
 
 
 func _init_materials() -> void:
-	_stone = Tex.material(Tex.bricks(), 1.0)
-	_wood = Tex.material(Tex.planks(), 1.0)
-	_dark_wood = Tex.material(Tex.planks(), 1.0, 0.55)
-	_sack = Tex.material(Tex.burlap(), 0.5)
-	_iron = Tex.material(Tex.rough(), 1.0, 0.8)
-	_plaster = Tex.material(Tex.plaster(), 2.0, 0.85)
+	_stone = Tex.material(Tex.bricks(), 1.0, 1.0, 2.5)
+	_wood = Tex.material(Tex.planks(), 1.0, 1.0, 1.6)
+	_dark_wood = Tex.material(Tex.planks(), 1.0, 0.55, 1.6)
+	_sack = Tex.material(Tex.burlap(), 0.5, 1.0, 1.2)
+	_iron = Tex.material(Tex.rough(), 1.0, 0.8, 1.0)
+	_plaster = Tex.material(Tex.plaster(), 2.0, 0.85, 0.8)
+	_whitewash = Tex.material(Tex.masonry(), 2.0, 1.0, 2.2)
+	_flags = Tex.material(Tex.flagstone(), 2.0, 0.9, 2.5)
 
 
 func _batch(mesh: Mesh, xform: Transform3D, mat: Material, layer := 2) -> void:

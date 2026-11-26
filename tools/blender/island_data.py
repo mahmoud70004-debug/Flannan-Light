@@ -15,8 +15,8 @@ SX, SY = 0.22, 0.30             # metres per photo pixel (y is stretched to undo
 X0, X1, Y0, Y1 = -105.0, 105.0, -80.0, 80.0
 LAND_TOP = 5.6                  # typical height of the top above the sea
 HUMP_TOP = 5.0                  # extra height of the rocky hump in the west
-LIGHT_H = 6.3                   # level ground around the lighthouse
-QUAY_H = 1.3                    # landing quay height above the sea
+TOP_H = 10.5                    # the cliff-top the tower stands on
+DECK_H = 1.0                    # the dock's deck above the sea
 
 
 def smoothstep(a, b, x):
@@ -54,16 +54,22 @@ def build():
     mask = np.asarray(img) > 0
     sd = (ndi.distance_transform_edt(mask) - ndi.distance_transform_edt(~mask)) * RES
 
-    L = to_world(meta["lighthouse_px"])
     P0 = to_world(meta["landing_px"])
     HU = to_world(meta["hump_px"])
+    wp1 = to_world([590, 226])
+    out = (P0 - wp1) / np.linalg.norm(P0 - wp1)            # seaward, at the old landing (about east)
+    lat = np.array([-out[1], out[0]])                       # along the coast (about north)
 
-    # --- the top: gently domed, rising to a rocky hump in the west -----------
+    def W(o, l):                                            # a point by (seaward, along-coast) metres from the old landing
+        return P0 + out * o + lat * l
+
+    L = W(-18.5, 1.5)                                       # the tower, on a cliff-top above the landing cove
+
+    # --- the top: gently domed, rising to a rocky hump in the west; a level cliff-top round the tower ----------
     T = LAND_TOP + lowfreq(22, 0.8) + lowfreq(8, 0.25) - 0.012 * X
     T += HUMP_TOP * np.exp(-(((X - HU[0]) ** 2 + (Y - HU[1]) ** 2) / 13.0 ** 2))
     dl = np.hypot(X - L[0], Y - L[1])
-    T = T * (1 - smoothstep(10, 22, 40 - dl) * 0) + 0  # keep T, pad applied below
-    T = np.where(dl < 40, T + (LIGHT_H - T) * (1 - smoothstep(9, 24, dl)), T)
+    T = T + (TOP_H - T) * (1 - smoothstep(12, 26, dl))
 
     # --- cliffs: steep rounded edge, then the sea floor falling away ---------
     wc = np.clip(3.0 + lowfreq(10, 1.0), 2.0, 4.6)
@@ -71,31 +77,70 @@ def build():
     h = np.where(sd >= 0, T * f, np.maximum(sd * 0.85, -9.0))
     h += lowfreq(2.5, 0.30) * np.clip(1 - np.abs(sd - 1.5) / 6.0, 0, 1)    # rocky roughness at the coast
 
-    # --- the approach: a gentle path from the quay up to the lighthouse -------
-    GATE_PX = [meta["lighthouse_px"][0], meta["lighthouse_px"][1] + 50]       # compound gate, 15 m south of the tower
-    wp_px = [meta["landing_px"], [590, 226], [510, 240], [440, 226], [420, 198], GATE_PX]
-    wp = np.array([to_world(p) for p in wp_px])
-    out_dir = (wp[0] - wp[1]) / np.linalg.norm(wp[0] - wp[1])
-    ext = np.array([wp[0] + out_dir * k for k in np.arange(0.0, 14.0, 0.5)])     # quay running into the sea
-    dense = []
-    for a, b in zip(wp[:-1], wp[1:]):
-        n = max(2, int(np.linalg.norm(b - a) / 0.5))
-        dense += [a + (b - a) * t for t in np.linspace(0, 1, n, endpoint=False)]
-    dense.append(wp[-1])
+    # --- the landing cove: a steep rock slope from the water up to the cliff-top, in the local frame ----------
+    O = (X - P0[0]) * out[0] + (Y - P0[1]) * out[1]
+    Lc = (X - P0[0]) * lat[0] + (Y - P0[1]) * lat[1]
+    wz = smoothstep(-7.0, -4.0, Lc) * (1 - smoothstep(11.0, 14.0, Lc)) * (1 - smoothstep(-14.0, -12.0, -O)) \
+        * smoothstep(-16.0, -12.0, O)
+    hs = np.where(O < -2.0, TOP_H * np.clip((-O - 2.0) / 9.0, 0, 1) ** 1.1, (-O - 2.0) * 1.3) + lowfreq(1.6, 0.35)
+    h = h * (1 - wz) + hs * wz
+
+    # --- the stair: three flights and two landings up the slope, then a level walk to the tower door ---------
+    nodes = [(-2.6, 0.0, DECK_H), (-4.4, 6.8, 4.2), (-5.6, 7.4, 4.2), (-7.2, 0.0, 7.4), (-8.4, -0.6, 7.4),
+             (-10.2, 5.0, TOP_H), (-11.6, 5.2, TOP_H)]
+    stair = [(W(o, l), hh) for o, l, hh in nodes]
+    door = L + out * 3.65
+    walk = stair + [(door, TOP_H)]
+    dense, dense_h = [], []
+    for (a, ha), (b, hb) in zip(walk[:-1], walk[1:]):
+        n = max(2, int(np.linalg.norm(b - a) / 0.25))
+        for t in np.linspace(0, 1, n, endpoint=False):
+            dense.append(a + (b - a) * t)
+            dense_h.append(ha + (hb - ha) * t)
+    dense.append(walk[-1][0])
+    dense_h.append(TOP_H)
     dense = np.array(dense)
-    seg = np.r_[0, np.cumsum(np.linalg.norm(np.diff(dense, axis=0), axis=1))]
-    total = seg[-1]
-    t_line = seg / total
-    ramp_line = QUAY_H + (LIGHT_H - QUAY_H) * (0.5 - 0.5 * np.cos(np.pi * t_line))
-    pts = np.vstack([ext[::-1], dense])
-    ramp_vals = np.r_[np.full(len(ext), QUAY_H), ramp_line]
-    tree = cKDTree(pts)
+    dense_h = np.array(dense_h)
+    tree = cKDTree(dense)
     dist, idx = tree.query(np.c_[X.ravel(), Y.ravel()])
     dist = dist.reshape(X.shape)
-    ramp_h = ramp_vals[idx].reshape(X.shape)
-    w = 1 - smoothstep(2.4, 12.0, dist)
-    w = np.where(sd > -9, w, 0)
-    h = h + (ramp_h - h) * w
+    sh = dense_h[idx].reshape(X.shape)
+    cut = 1 - smoothstep(1.3, 2.2, dist)                    # the stair is cut into the rock, a little below its treads
+    h = np.where(cut > 0, np.minimum(h, h * (1 - cut) + (sh - 0.7) * cut), h)
+    flat = 1 - smoothstep(1.2, 2.4, dist)                   # the level walk on the cliff-top meets the ground flush
+    h = np.where((sh >= TOP_H - 0.01) & (flat > 0), h * (1 - flat) + TOP_H * flat, h)
+    h = np.where(dl < 6.0, TOP_H, h)                        # the tower's footing
+
+    # --- the dock: from the foot of the stair out over the water ------------------------------------------
+    dock = [W(-2.6, 0.0), W(8.0, 0.0)]
+    dd = np.abs((X - dock[0][0]) * lat[0] + (Y - dock[0][1]) * lat[1])
+    along = (X - dock[0][0]) * out[0] + (Y - dock[0][1]) * out[1]
+    under = (dd < 2.5) & (along > 0.6) & (along < 11.0)
+    h = np.where(under, np.minimum(h, -1.6), h)
+
+    # --- boulders: big rocks round the cove and beside the stair, never on the walkway ---------------------
+    brng = np.random.default_rng(77)
+    boulders = []
+    tries = 0
+    while len(boulders) < 30 and tries < 4000:
+        tries += 1
+        o = brng.uniform(-13.0, 5.0)
+        l = brng.uniform(-8.0, 14.0)
+        p = W(o, l)
+        r = brng.uniform(0.9, 2.6) if o > -5 else brng.uniform(0.7, 1.7)
+        if np.min(np.hypot(dense[:, 0] - p[0], dense[:, 1] - p[1])) < r + 1.4:
+            continue
+        dock_d = abs((p[0] - dock[0][0]) * lat[0] + (p[1] - dock[0][1]) * lat[1])
+        dock_a = (p[0] - dock[0][0]) * out[0] + (p[1] - dock[0][1]) * out[1]
+        if dock_d < r + 1.8 and -1.0 < dock_a < 12.0:
+            continue
+        if any(np.hypot(p[0] - q[0], p[1] - q[1]) < (r + q[2]) * 0.8 for q in boulders):
+            continue
+        gi, gj = int(round((p[0] - X0) / RES)), int(round((p[1] - Y0) / RES))
+        base = h[gj, gi]
+        if base < -4.0 or base > TOP_H - 1.0:
+            continue
+        boulders.append((p[0], p[1], r, base, int(brng.integers(1, 99999))))
 
     # --- vertex colours (luminance-first): grass, rock, strata, path, wet, AO --
     gy, gx = np.gradient(h, RES)
@@ -107,12 +152,9 @@ def build():
     band = (np.sin(h * 2 * np.pi / 0.9) > 0).astype(float)
     col *= 1 - 0.20 * steep * band
     col = col + (0.18 - col) * 0.85 * (1 - smoothstep(0.3, 1.7, h))               # wet rock at the waterline
-    on_path = (1 - smoothstep(0.9, 1.7, dist)) * (h > 0.6)
-    col = col + (0.62 - col) * on_path * 0.8
     cav = ndi.gaussian_filter(h, 2.5 / RES) - h
     col *= 1 - np.clip(cav * 0.45, 0, 0.45)
     col = np.clip(col, 0.05, 0.95)
 
-    lighthouse_h = float(h[int((L[1] - Y0) / RES), int((L[0] - X0) / RES)])
-    return dict(X=X, Y=Y, h=h, col=col, sd=sd, nx=nx, ny=ny, path=dense, path_h=ramp_line, ext=ext,
-                L=L, lighthouse_h=lighthouse_h, P0=P0, wp=wp, total=total, poly_w=poly_w, to_world=to_world, meta=meta)
+    return dict(X=X, Y=Y, h=h, col=col, sd=sd, nx=nx, ny=ny, L=L, out=out, stair=stair, door=door, dock=dock,
+                boulders=boulders, poly_w=poly_w, to_world=to_world, meta=meta)
