@@ -36,5 +36,5 @@ void fragment() {
 	float band = sin(mask * 26.0 - TIME * 1.6 + hash(floor(wpos.xz * 0.5)) * 2.0) * 0.5 + 0.5;
 	float surf = step(1.0 - foam_level * mask * 0.85, band * (0.55 + 0.45 * mask)) * step(0.06, mask);
 	float shore = smoothstep(0.78, 1.0, mask);
-	ALBEDO = vec3(clamp(v + surf * 0.55 + shore * 0.35, 0.0, 1.0));
+	ALBEDO = vec3(clamp(v + surf * 0.3 + shore * 0.14, 0.0, 1.0));
 }

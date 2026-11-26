@@ -82,7 +82,7 @@ func _v(a: Array) -> Vector3:
 func _build_terrain() -> void:
 	var scene := (load(MODEL) as PackedScene).instantiate()
 	add_child(scene)
-	var mat := Tex.material(Tex.rock(), 3.0, 1.35, 2.5)
+	var mat := Tex.material(Tex.rock(), 3.0, 1.15, 2.5)
 	mat.vertex_color_use_as_albedo = true
 	for n in scene.find_children("*", "MeshInstance3D", true, false):
 		var mi := n as MeshInstance3D
@@ -443,7 +443,11 @@ func _build_boulders() -> void:
 			nrm = nrm.normalized()
 			if nrm.dot((p0 + p1 + p2) / 3.0 - centre) < 0.0:
 				nrm = -nrm
-			b.tri(p0, p1, p2, nrm, nrm, nrm)
+			# half faceted, half rounded: chunky rock that does not flash white on its sunny facets
+			var n0 := (nrm + (p0 - centre).normalized()).normalized()
+			var n1 := (nrm + (p1 - centre).normalized()).normalized()
+			var n2 := (nrm + (p2 - centre).normalized()).normalized()
+			b.tri(p0, p1, p2, n0, n1, n2)
 		var body := StaticBody3D.new()
 		var cs := CollisionShape3D.new()
 		var shape := ConvexPolygonShape3D.new()
@@ -452,7 +456,7 @@ func _build_boulders() -> void:
 		body.add_child(cs)
 		add_child(body)
 	if not b.is_empty():
-		add_child(b.instance(Tex.material(Tex.rock(), 2.0, 0.6, 3.0)))
+		add_child(b.instance(Tex.material(Tex.rock(), 2.0, 0.45, 3.0)))
 
 
 ## Removes the terrain's triangles over a rectangle given in another node's frame (the tower cuts a hole for the
